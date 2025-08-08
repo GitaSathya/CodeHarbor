@@ -1,0 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(0 0% 9%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(0 0% 9%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(0 0% 9%);
+  --primary: hsl(207 89% 42%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(120 34% 41%);
+  --secondary-foreground: hsl(0 0% 100%);
+  --muted: hsl(0 0% 96%);
+  --muted-foreground: hsl(0 0% 45%);
+  --accent: hsl(14 100% 57%);
+  --accent-foreground: hsl(0 0% 100%);
+  --destructive: hsl(4 90% 58%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --border: hsl(0 0% 90%);
+  --input: hsl(0 0% 90%);
+  --ring: hsl(207 89% 42%);
+  --success: hsl(122 39% 49%);
+  --warning: hsl(36 100% 50%);
+  --error: hsl(4 90% 58%);
+  --font-roboto: 'Roboto', sans-serif;
+  --radius: 0.5rem;
+  --shadow-material-1: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+  --shadow-material-2: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+  --shadow-material-3: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
+}
+
+.dark {
+  --background: hsl(0 0% 9%);
+  --foreground: hsl(0 0% 95%);
+  --card: hsl(0 0% 9%);
+  --card-foreground: hsl(0 0% 95%);
+  --popover: hsl(0 0% 9%);
+  --popover-foreground: hsl(0 0% 95%);
+  --primary: hsl(207 89% 54%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(120 34% 45%);
+  --secondary-foreground: hsl(0 0% 100%);
+  --muted: hsl(0 0% 15%);
+  --muted-foreground: hsl(0 0% 65%);
+  --accent: hsl(14 100% 60%);
+  --accent-foreground: hsl(0 0% 100%);
+  --destructive: hsl(4 90% 63%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --border: hsl(0 0% 15%);
+  --input: hsl(0 0% 15%);
+  --ring: hsl(207 89% 54%);
+  --success: hsl(122 39% 55%);
+  --warning: hsl(36 100% 55%);
+  --error: hsl(4 90% 63%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-800 font-roboto antialiased;
+    font-family: var(--font-roboto);
+  }
+}
+
+@layer utilities {
+  .shadow-material-1 {
+    box-shadow: var(--shadow-material-1);
+  }
+  
+  .shadow-material-2 {
+    box-shadow: var(--shadow-material-2);
+  }
+  
+  .shadow-material-3 {
+    box-shadow: var(--shadow-material-3);
+  }
+  
+  .font-roboto {
+    font-family: var(--font-roboto);
+  }
+}
