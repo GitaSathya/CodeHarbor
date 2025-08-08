@@ -1,97 +1,155 @@
-import { FileText, Upload, Trash2, Eye, Download, Filter, FolderOpen } from "lucide-react";
+import { FileText, Upload, Trash2, Eye, Download, Filter, FolderOpen, Briefcase, Users, CheckCircle, Play } from "lucide-react";
 import Header from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Document, Analysis } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import React, { useState, useEffect, useMemo } from 'react';
 
-const mockDocuments = [
-  {
-    id: 1,
-    name: "Senior React Developer.pdf",
-    type: "Job Description",
-    uploadDate: "2024-01-15",
-    status: "Processed",
-    size: "125 KB"
-  },
-  {
-    id: 2,
-    name: "John Doe Resume.pdf",
-    type: "Consultant Profile",
-    uploadDate: "2024-01-14",
-    status: "Processing",
-    size: "98 KB"
-  },
-  {
-    id: 3,
-    name: "Data Scientist Position.docx",
-    type: "Job Description",
-    uploadDate: "2024-01-13",
-    status: "Processed",
-    size: "76 KB"
-  },
-  {
-    id: 4,
-    name: "Jane Smith CV.pdf",
-    type: "Consultant Profile",
-    uploadDate: "2024-01-12",
-    status: "Failed",
-    size: "112 KB"
-  }
-];
-
 export default function Documents() {
-  const [documents, setDocuments] = useState(mockDocuments);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const handleViewDocument = (doc) => {
-    console.log(`Viewing document: ${doc.name}`);
-    alert(`Viewing document: ${doc.name}`);
-  };
+  const { data: documents = [], isLoading: documentsLoading } = useQuery<Document[]>({
+    queryKey: ['/api/documents'],
+  });
 
-  const handleDownloadDocument = (doc) => {
-    console.log(`Downloading document: ${doc.name}`);
-    alert(`Downloading document: ${doc.name}`);
-  };
+  const { data: analyses = [] } = useQuery<Analysis[]>({
+    queryKey: ['/api/analyses'],
+  });
 
-  const handleDeleteDocument = (id) => {
-    console.log(`Deleting document with id: ${id}`);
-    setDocuments(documents.filter(doc => doc.id !== id));
-    alert(`Document with id ${id} deleted.`);
-  };
+  const uploadMutation = useMutation({
+    mutationFn: async ({ file, type }: { file: File; type: string }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', type);
+      
+      const response = await fetch('/api/documents/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Upload failed');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
+      toast({
+        title: "Upload successful",
+        description: "Document uploaded and processed successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Upload failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
-  const handleFileUpload = (event) => {
-    const files = Array.from(event.target.files);
-    const newDocuments = files.map((file, index) => {
-      // Mocking upload process
-      const reader = new FileReader();
-      let fileType = "Unknown";
-      if (file.type.includes("pdf")) fileType = "Job Description"; // Simplified type detection
-      if (file.type.includes("document") || file.type.includes("wordprocessingml")) fileType = "Consultant Profile"; // Simplified type detection
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest('DELETE', `/api/documents/${id}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
+      toast({
+        title: "Document deleted",
+        description: "Document has been successfully deleted",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Delete failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
-      return {
-        id: documents.length + index + 1,
-        name: file.name,
-        type: fileType,
-        uploadDate: new Date().toISOString().split('T')[0],
-        status: "Processing",
-        size: (file.size / 1024).toFixed(0) + " KB"
-      };
+  const handleViewDocument = (doc: Document) => {
+    toast({
+      title: "Document preview",
+      description: `Viewing ${doc.name} - Feature coming soon`,
     });
-    setDocuments([...documents, ...newDocuments]);
-    alert(`Uploaded ${files.length} new document(s).`);
+  };
+
+  const handleDownloadDocument = (doc: Document) => {
+    toast({
+      title: "Download started",
+      description: `Downloading ${doc.name} - Feature coming soon`,
+    });
+  };
+
+  const handleDeleteDocument = (id: string) => {
+    if (confirm("Are you sure you want to delete this document?")) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    
+    files.forEach((file) => {
+      // Auto-detect document type based on filename or let user specify
+      let type = "consultant_profile";
+      const fileName = file.name.toLowerCase();
+      
+      if (fileName.includes('job') || fileName.includes('position') || fileName.includes('role')) {
+        type = "job_description";
+      }
+      
+      uploadMutation.mutate({ file, type });
+    });
+    
+    // Reset input
+    event.target.value = '';
   };
 
   const filteredDocuments = useMemo(() => {
     return documents.filter((doc) => {
       const matchesSearchTerm = doc.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesFilterType = filterType === 'all' || doc.type === filterType;
+      const docTypeDisplay = doc.type === 'job_description' ? 'Job Description' : 'Consultant Profile';
+      const matchesFilterType = filterType === 'all' || docTypeDisplay === filterType;
       return matchesSearchTerm && matchesFilterType;
     });
   }, [documents, searchTerm, filterType]);
+
+  // Prepare jobs data for the table
+  const jobDescriptions = documents.filter(doc => doc.type === 'job_description');
+  const consultantProfiles = documents.filter(doc => doc.type === 'consultant_profile');
+  
+  const jobsTableData = jobDescriptions.map((job) => {
+    const relatedAnalysis = analyses.find(analysis => analysis.jobDescriptionId === job.id);
+    const totalApplicants = consultantProfiles.length;
+    const shortlistedCount = relatedAnalysis?.results?.length || 0;
+    
+    return {
+      id: job.id,
+      jobTitle: relatedAnalysis?.jobTitle || job.name.replace(/\.(pdf|docx?|txt)$/i, ''),
+      jobDescription: job.content.substring(0, 100) + (job.content.length > 100 ? '...' : ''),
+      totalApplicants,
+      shortlistedApplicants: shortlistedCount,
+      status: relatedAnalysis?.status || 'Not Analyzed',
+      uploadDate: job.createdAt,
+    };
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -140,8 +198,81 @@ export default function Documents() {
           </Select>
         </div>
 
+        {/* Jobs Analysis Table */}
+        {jobsTableData.length > 0 && (
+          <div className="mb-8">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Briefcase className="w-5 h-5 text-primary" />
+                  <span>Job Analysis Overview</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Job Title</TableHead>
+                      <TableHead>Job Description</TableHead>
+                      <TableHead className="text-center">Total Applicants</TableHead>
+                      <TableHead className="text-center">Shortlisted</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      <TableHead className="text-center">Upload Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {jobsTableData.map((job) => (
+                      <TableRow key={job.id}>
+                        <TableCell className="font-medium max-w-[200px] truncate">
+                          {job.jobTitle}
+                        </TableCell>
+                        <TableCell className="max-w-[300px]">
+                          <p className="text-sm text-gray-600 line-clamp-2">
+                            {job.jobDescription}
+                          </p>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center space-x-1">
+                            <Users className="w-4 h-4 text-blue-500" />
+                            <span className="font-medium">{job.totalApplicants}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center space-x-1">
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <span className="font-medium text-green-600">{job.shortlistedApplicants}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge 
+                            variant={
+                              job.status === 'completed' ? 'default' : 
+                              job.status === 'processing' ? 'secondary' : 'outline'
+                            }
+                          >
+                            {job.status === 'completed' ? 'Analyzed' : 
+                             job.status === 'processing' ? 'Processing' : 'Not Analyzed'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center text-sm text-gray-500">
+                          {new Date(job.uploadDate).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Documents Grid */}
-        {filteredDocuments.length === 0 ? (
+        {documentsLoading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading documents...</p>
+          </div>
+        ) : filteredDocuments.length === 0 ? (
           <div className="text-center py-12">
             <FolderOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No documents found</h3>
@@ -174,12 +305,13 @@ export default function Documents() {
                     <FileText className="w-8 h-8 text-primary flex-shrink-0" />
                     <Badge 
                       variant={
-                        doc.status === 'Processed' ? 'default' : 
-                        doc.status === 'Processing' ? 'secondary' : 'destructive'
+                        doc.status === 'completed' ? 'default' : 
+                        doc.status === 'processing' ? 'secondary' : 'destructive'
                       }
                       className="text-xs"
                     >
-                      {doc.status}
+                      {doc.status === 'completed' ? 'Processed' : 
+                       doc.status === 'processing' ? 'Processing' : 'Failed'}
                     </Badge>
                   </div>
                   <CardTitle className="text-sm font-medium leading-tight line-clamp-2">
@@ -190,15 +322,13 @@ export default function Documents() {
                   <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
                     <div className="flex justify-between">
                       <span>Type:</span>
-                      <span className="font-medium">{doc.type}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Size:</span>
-                      <span>{doc.size}</span>
+                      <span className="font-medium">
+                        {doc.type === 'job_description' ? 'Job Description' : 'Consultant Profile'}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Date:</span>
-                      <span>{doc.uploadDate}</span>
+                      <span>{new Date(doc.createdAt).toLocaleDateString()}</span>
                     </div>
                   </div>
 
@@ -229,6 +359,7 @@ export default function Documents() {
                       className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
                       onClick={() => handleDeleteDocument(doc.id)}
                       title="Delete document"
+                      disabled={deleteMutation.isPending}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>

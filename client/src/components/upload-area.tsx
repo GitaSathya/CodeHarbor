@@ -17,21 +17,48 @@ export default function UploadArea({ type, title, description }: UploadAreaProps
   const queryClient = useQueryClient();
 
   const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async ({ file, type }: { file: File; type: string }) => {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('type', type);
-      
-      const response = await apiRequest('POST', '/api/documents/upload', formData);
+
+      const response = await fetch('/api/documents/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Upload failed');
+      }
+
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async (uploadedDoc) => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
       queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
-      toast({
-        title: "Upload successful",
-        description: "Document has been uploaded and processed.",
-      });
+
+      // If this is a job description, automatically trigger analysis
+      if (uploadedDoc.type === 'job_description') {
+        try {
+          await apiRequest('POST', '/api/analysis', { jobDescriptionId: uploadedDoc.id });
+          queryClient.invalidateQueries({ queryKey: ['/api/analyses'] });
+          toast({
+            title: "Upload successful",
+            description: "Job description uploaded and analysis started automatically",
+          });
+        } catch (error) {
+          toast({
+            title: "Upload successful",
+            description: "Document uploaded successfully, but analysis failed to start",
+          });
+        }
+      } else {
+        toast({
+          title: "Upload successful",
+          description: "Document uploaded successfully",
+        });
+      }
     },
     onError: (error) => {
       toast({
@@ -44,16 +71,16 @@ export default function UploadArea({ type, title, description }: UploadAreaProps
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
-    
+
     setIsUploading(true);
     try {
       for (const file of acceptedFiles) {
-        await uploadMutation.mutateAsync(file);
+        await uploadMutation.mutateAsync({ file, type });
       }
     } finally {
       setIsUploading(false);
     }
-  }, [uploadMutation]);
+  }, [uploadMutation, type]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -74,8 +101,8 @@ export default function UploadArea({ type, title, description }: UploadAreaProps
       <div
         {...getRootProps()}
         className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
-          isDragActive 
-            ? 'border-primary bg-blue-50' 
+          isDragActive
+            ? 'border-primary bg-blue-50'
             : 'border-gray-300 hover:border-primary'
         } ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
       >

@@ -26,24 +26,28 @@ export default function Dashboard() {
               value={stats?.totalDocuments || 0}
               icon={FileText}
               color="text-primary"
+              loading={statsLoading}
             />
             <StatsCard
               title="Active Jobs"
               value={stats?.activeJobs || 0}
               icon={Briefcase}
               color="text-green-600"
+              loading={statsLoading}
             />
             <StatsCard
               title="Matches Found"
               value={stats?.matchesFound || 0}
               icon={Users}
               color="text-green-500"
+              loading={statsLoading}
             />
             <StatsCard
               title="Processing"
               value={stats?.processing || 0}
               icon={Clock}
               color="text-orange-500"
+              loading={statsLoading}
             />
           </div>
         </section>
