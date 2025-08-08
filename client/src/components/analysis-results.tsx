@@ -1,3 +1,4 @@
+
 import { Trophy, AlertTriangle, Filter, Search, Clock, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -40,18 +41,10 @@ export default function AnalysisResults() {
     },
   });
 
-  const jobDescriptions = documents.filter(doc => doc.type === 'job_description');
-  const consultantProfiles = documents.filter(doc => doc.type === 'consultant_profile');
-  const latestAnalysis = analyses.length > 0 ? analyses[analyses.length - 1] : null;
-
-  const handleStartAnalysis = (jobDescriptionId: string) => {
-    startAnalysisMutation.mutate(jobDescriptionId);
-  };
-
   const jobDescriptions = documents.filter(doc => 
     doc.type === 'job_description' && doc.status === 'completed'
   );
-
+  const consultantProfiles = documents.filter(doc => doc.type === 'consultant_profile');
   const latestAnalysis = analyses[0];
 
   const handleStartAnalysis = (jobDescriptionId: string) => {
@@ -137,23 +130,34 @@ export default function AnalysisResults() {
                         <h4 className="font-medium text-blue-800">Latest Analysis: {latestAnalysis.jobTitle}</h4>
                         <p className="text-sm text-blue-600">
                           Status: {latestAnalysis.status} • 
-                          Matches: {latestAnalysis.results?.length || 0} found
+                          Matches: {Array.isArray(latestAnalysis.matches) ? latestAnalysis.matches.length : 0} found
                         </p>
                       </div>
                       <div className="text-right text-sm text-blue-600">
-                        {new Date(latestAnalysis.createdAt).toLocaleDateString()}
+                        {latestAnalysis.createdAt ? new Date(latestAnalysis.createdAt).toLocaleDateString() : "Unknown date"}
                       </div>
                     </div>
 
-                    {latestAnalysis.results && latestAnalysis.results.length > 0 ? (
+                    {Array.isArray(latestAnalysis.matches) && latestAnalysis.matches.length > 0 ? (
                       <div className="space-y-3">
                         <h4 className="font-medium text-gray-900">Top Matches:</h4>
-                        {latestAnalysis.results.slice(0, 3).map((match, index) => (
-                          <MatchCard key={match.profileId} match={match} rank={index + 1} />
+                        {latestAnalysis.matches.slice(0, 3).map((match, index) => (
+                          <MatchCard
+                            key={match.profileId}
+                            rank={index + 1}
+                            name={match.profileName}
+                            role={match.role}
+                            overallScore={match.overallScore}
+                            skillsMatch={match.skillsMatch}
+                            experienceMatch={match.experienceMatch}
+                            contextMatch={match.contextMatch}
+                            matchedSkills={match.matchedSkills}
+                            experience={match.experience}
+                          />
                         ))}
-                        {latestAnalysis.results.length > 3 && (
+                        {latestAnalysis.matches.length > 3 && (
                           <p className="text-sm text-gray-500 text-center py-2">
-                            +{latestAnalysis.results.length - 3} more matches available
+                            +{latestAnalysis.matches.length - 3} more matches available
                           </p>
                         )}
                       </div>
@@ -173,86 +177,6 @@ export default function AnalysisResults() {
                         <p className="text-sm text-gray-600">Analysis in progress...</p>
                       </div>
                     )}
-                  </div>
-                )}
-              </>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-
-        {!latestAnalysis && (
-          <div className="text-center py-12">
-            <Trophy className="text-gray-400 text-6xl mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No analyses yet</h3>
-            <p className="text-gray-600 mb-4">Upload job descriptions and consultant profiles to get started.</p>
-          </div>
-        )}
-
-        {latestAnalysis && (
-          <>
-            {/* Job Analysis Card */}
-            <div className="border rounded-lg p-4 mb-6 bg-blue-50 border-blue-200">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium text-gray-900">{latestAnalysis.jobTitle}</h3>
-                <div className="flex items-center space-x-2">
-                  {latestAnalysis.status === 'processing' && (
-                    <>
-                      <Clock className="text-orange-500 w-4 h-4" />
-                      <span className="px-3 py-1 bg-orange-500 text-white text-xs rounded-full">Processing</span>
-                    </>
-                  )}
-                  {latestAnalysis.status === 'completed' && (
-                    <span className="px-3 py-1 bg-green-500 text-white text-xs rounded-full">Completed</span>
-                  )}
-                  {latestAnalysis.status === 'failed' && (
-                    <span className="px-3 py-1 bg-red-500 text-white text-xs rounded-full">Failed</span>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center text-sm text-gray-500">
-                <Clock className="text-sm mr-1" />
-                <span>Analyzed {new Date(latestAnalysis.createdAt!).toLocaleString()}</span>
-              </div>
-            </div>
-
-            {latestAnalysis.status === 'completed' && latestAnalysis.matches && (
-              <>
-                {Array.isArray(latestAnalysis.matches) && latestAnalysis.matches.length > 0 ? (
-                  <div className="space-y-4">
-                    <h4 className="font-medium text-gray-900 flex items-center">
-                      <Trophy className="text-green-500 mr-2" />
-                      Top Matches
-                    </h4>
-                    
-                    {latestAnalysis.matches.slice(0, 3).map((match: any, index: number) => (
-                      <MatchCard
-                        key={match.profileId}
-                        rank={index + 1}
-                        name={match.profileName}
-                        role={match.role}
-                        overallScore={match.overallScore}
-                        skillsMatch={match.skillsMatch}
-                        experienceMatch={match.experienceMatch}
-                        contextMatch={match.contextMatch}
-                        matchedSkills={match.matchedSkills}
-                        experience={match.experience}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <AlertTriangle className="text-red-500" />
-                      <div>
-                        <h4 className="font-medium text-red-800">{latestAnalysis.jobTitle}</h4>
-                        <p className="text-sm text-red-600">
-                          No suitable matches found. Consider expanding search criteria or adding more consultant profiles.
-                        </p>
-                      </div>
-                    </div>
                   </div>
                 )}
               </>
