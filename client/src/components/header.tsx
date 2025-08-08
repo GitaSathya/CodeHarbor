@@ -1,11 +1,37 @@
-import { Brain, Info, Moon, Sun } from "lucide-react";
+import { Brain, Moon, Sun, User, LogOut, Settings, Mail } from "lucide-react";
 import { useTheme } from "@/contexts/theme-context";
-import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useState, useEffect } from "react";
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+  const [user, setUser] = useState<{email: string, isAuthenticated: boolean} | null>(null);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('hr_user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+  }, []);
+
+  const handleLogin = () => {
+    navigate('/login');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('hr_user');
+    setUser(null);
+    navigate('/login');
+  };
 
   return (
     <header className="bg-white dark:bg-gray-900 shadow-material-1 sticky top-0 z-50">
@@ -59,25 +85,52 @@ export default function Header() {
               Settings
             </a>
           </nav>
-          <div className="flex items-center space-x-4">
-            <Button
-              variant="ghost"
-              size="icon"
+          <div className="flex items-center space-x-3">
+            <button
               onClick={toggleTheme}
-              className="rounded-full"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              aria-label="Toggle theme"
             >
-              {theme === 'light' ? (
-                <Moon className="h-5 w-5" />
+              {theme === 'dark' ? (
+                <Sun className="w-5 h-5 text-gray-600 dark:text-gray-400" />
               ) : (
-                <Sun className="h-5 w-5" />
+                <Moon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
               )}
-            </Button>
-            <button className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-              <Info className="text-gray-600 dark:text-gray-400" />
             </button>
-            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-medium">HR</span>
-            </div>
+
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-10 w-10 rounded-full bg-primary text-primary-foreground hover:bg-primary/90">
+                    HR
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end">
+                  <div className="flex items-center justify-start gap-2 p-2">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">HR Portal</p>
+                      <p className="text-xs leading-none text-muted-foreground">
+                        {user.email}
+                      </p>
+                    </div>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate('/settings')}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Account Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleLogout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Sign out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button onClick={handleLogin} variant="default" size="sm" className="flex items-center space-x-2">
+                <Mail className="w-4 h-4" />
+                <span>HR Login</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>

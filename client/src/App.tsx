@@ -8,6 +8,7 @@ import Dashboard from "@/pages/dashboard";
 import Documents from "@/pages/documents";
 import Analytics from "@/pages/analytics";
 import Settings from "@/pages/settings";
+import Login from "@/pages/login";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/documents" component={Documents} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/settings" component={Settings} />
+      <Route path="/login" component={Login} />
       <Route component={NotFound} />
     </Switch>
   );
