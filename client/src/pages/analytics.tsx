@@ -79,7 +79,7 @@ export default function Analytics() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Poor Matches (<50%)</span>
+                  <span className="text-sm font-medium">Poor Matches (&lt;50%)</span>
                   <span className="text-sm text-red-600">23</span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
