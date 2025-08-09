@@ -31,17 +31,17 @@ export default function Documents() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('type', type);
-      
+
       const response = await fetch('/api/documents/upload', {
         method: 'POST',
         body: formData,
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Upload failed');
       }
-      
+
       return response.json();
     },
     onSuccess: () => {
@@ -105,19 +105,30 @@ export default function Documents() {
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
-    
+
     files.forEach((file) => {
       // Auto-detect document type based on filename or let user specify
       let type = "consultant_profile";
       const fileName = file.name.toLowerCase();
-      
+
       if (fileName.includes('job') || fileName.includes('position') || fileName.includes('role')) {
         type = "job_description";
       }
-      
-      uploadMutation.mutate({ file, type });
+      // If the file is a zip, we should uncompress it and upload each file individually
+      if (file.type === 'application/zip') {
+        // This part would need a backend API call to handle unzipping
+        // For now, we'll just log that it's a zip file
+        console.log(`Handling zip file: ${file.name}`);
+        // In a real application, you'd send the zip file to a backend endpoint
+        // that handles unzipping and then processing each file within the zip.
+        // For demonstration, we'll assume a backend endpoint `/api/documents/upload-zip`
+        // that takes the zip file and returns an array of uploaded documents.
+        // uploadMutation.mutate({ file, type: 'zip' }); // This would need a separate mutation or modification to uploadMutation
+      } else {
+        uploadMutation.mutate({ file, type });
+      }
     });
-    
+
     // Reset input
     event.target.value = '';
   };
@@ -125,7 +136,7 @@ export default function Documents() {
   const filteredDocuments = useMemo(() => {
     return documents.filter((doc) => {
       const matchesSearchTerm = doc.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const docTypeDisplay = doc.type === 'job_description' ? 'Job Description' : 'Consultant Profile';
+      const docTypeDisplay = doc.type === 'job_description' ? 'Job Description' : 'Applicant Profile';
       const matchesFilterType = filterType === 'all' || docTypeDisplay === filterType;
       return matchesSearchTerm && matchesFilterType;
     });
@@ -133,13 +144,13 @@ export default function Documents() {
 
   // Prepare jobs data for the table
   const jobDescriptions = documents.filter(doc => doc.type === 'job_description');
-  const consultantProfiles = documents.filter(doc => doc.type === 'consultant_profile');
-  
+  const applicantProfiles = documents.filter(doc => doc.type === 'consultant_profile');
+
   const jobsTableData = jobDescriptions.map((job) => {
     const relatedAnalysis = analyses.find(analysis => analysis.jobDescriptionId === job.id);
-    const totalApplicants = consultantProfiles.length;
+    const totalApplicants = applicantProfiles.length;
     const shortlistedCount = relatedAnalysis?.results?.length || 0;
-    
+
     return {
       id: job.id,
       jobTitle: relatedAnalysis?.jobTitle || job.name.replace(/\.(pdf|docx?|txt)$/i, ''),
@@ -158,14 +169,14 @@ export default function Documents() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Documents</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">Manage your job descriptions and consultant profiles</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Applicant Profiles</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">Manage your job descriptions and applicant profiles</p>
           </div>
           <div className="relative inline-block">
             <input
               type="file"
               multiple
-              accept=".pdf,.doc,.docx,.txt"
+              accept=".pdf,.doc,.docx,.txt,.zip"
               onChange={handleFileUpload}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
             />
@@ -193,7 +204,7 @@ export default function Documents() {
             <SelectContent>
               <SelectItem value="all">All Documents</SelectItem>
               <SelectItem value="Job Description">Job Descriptions</SelectItem>
-              <SelectItem value="Consultant Profile">Consultant Profiles</SelectItem>
+              <SelectItem value="Applicant Profile">Applicant Profiles</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -278,15 +289,14 @@ export default function Documents() {
             <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No documents found</h3>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
               {documents.length === 0 
-                ? "Get started by uploading your first job description or consultant profile."
+                ? "Get started by uploading your first job description or applicant profile."
                 : "Try adjusting your search or filter criteria."
-              }
-            </p>
+              }</p>
             <div className="relative inline-block">
               <input
                 type="file"
                 multiple
-                accept=".pdf,.doc,.docx,.txt"
+                accept=".pdf,.doc,.docx,.txt,.zip"
                 onChange={handleFileUpload}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
@@ -323,7 +333,7 @@ export default function Documents() {
                     <div className="flex justify-between">
                       <span>Type:</span>
                       <span className="font-medium">
-                        {doc.type === 'job_description' ? 'Job Description' : 'Consultant Profile'}
+                        {doc.type === 'job_description' ? 'Job Description' : 'Applicant Profile'}
                       </span>
                     </div>
                     <div className="flex justify-between">

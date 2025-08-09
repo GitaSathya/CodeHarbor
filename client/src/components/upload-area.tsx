@@ -89,6 +89,7 @@ export default function UploadArea({ type, title, description }: UploadAreaProps
       'application/msword': ['.doc'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
       'text/plain': ['.txt'],
+      'application/zip': ['.zip'],
     },
     multiple: type === 'consultant_profile',
   });
@@ -111,7 +112,7 @@ export default function UploadArea({ type, title, description }: UploadAreaProps
         <p className="text-sm text-gray-600">
           {isUploading ? 'Uploading...' : description}
         </p>
-        <p className="text-xs text-gray-500 mt-1">Supports PDF, DOC, TXT</p>
+        <p className="text-xs text-gray-500 mt-1">Supports PDF, DOC, TXT, ZIP</p>
       </div>
     </div>
   );

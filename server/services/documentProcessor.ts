@@ -1,5 +1,6 @@
 import { storage } from "../storage";
 import { analyzeDocumentSimilarity, extractJobTitle } from "./gemini";
+import * as yauzl from 'yauzl';
 
 export async function processJobAnalysis(jobDescriptionId: string): Promise<void> {
   try {
@@ -56,4 +57,85 @@ export function extractTextFromFile(buffer: Buffer, filename: string): string {
   // For PDF and DOC files, return placeholder for now
   // In production, implement proper extraction
   return buffer.toString('utf-8');
+}
+
+export async function extractZipFiles(buffer: Buffer): Promise<Array<{ name: string; content: string }>> {
+  return new Promise((resolve, reject) => {
+    const extractedFiles: Array<{ name: string; content: string }> = [];
+    
+    yauzl.fromBuffer(buffer, { lazyEntries: true }, (err, zipfile) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      
+      if (!zipfile) {
+        reject(new Error('Invalid ZIP file'));
+        return;
+      }
+
+      zipfile.readEntry();
+
+      zipfile.on('entry', (entry) => {
+        if (/\/$/.test(entry.fileName)) {
+          // Directory entry, skip
+          zipfile.readEntry();
+          return;
+        }
+
+        // Check if file has supported extension
+        const supportedExtensions = ['.pdf', '.doc', '.docx', '.txt'];
+        const hasValidExtension = supportedExtensions.some(ext => 
+          entry.fileName.toLowerCase().endsWith(ext)
+        );
+
+        if (!hasValidExtension) {
+          zipfile.readEntry();
+          return;
+        }
+
+        zipfile.openReadStream(entry, (err, readStream) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+
+          if (!readStream) {
+            zipfile.readEntry();
+            return;
+          }
+
+          const chunks: Buffer[] = [];
+          
+          readStream.on('data', (chunk) => {
+            chunks.push(chunk);
+          });
+
+          readStream.on('end', () => {
+            const fileBuffer = Buffer.concat(chunks);
+            const content = extractTextFromFile(fileBuffer, entry.fileName);
+            
+            extractedFiles.push({
+              name: entry.fileName,
+              content: content
+            });
+
+            zipfile.readEntry();
+          });
+
+          readStream.on('error', (err) => {
+            reject(err);
+          });
+        });
+      });
+
+      zipfile.on('end', () => {
+        resolve(extractedFiles);
+      });
+
+      zipfile.on('error', (err) => {
+        reject(err);
+      });
+    });
+  });
 }

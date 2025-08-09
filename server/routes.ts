@@ -2,18 +2,18 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertDocumentSchema, insertAnalysisSchema } from "@shared/schema";
-import { processJobAnalysis, extractTextFromFile } from "./services/documentProcessor";
+import { processJobAnalysis, extractTextFromFile, extractZipFiles } from "./services/documentProcessor";
 import multer from "multer";
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
-    if (allowedTypes.includes(file.mimetype) || file.originalname.toLowerCase().endsWith('.txt')) {
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'application/zip'];
+    if (allowedTypes.includes(file.mimetype) || file.originalname.toLowerCase().endsWith('.txt') || file.originalname.toLowerCase().endsWith('.zip')) {
       cb(null, true);
     } else {
-      cb(new Error('Unsupported file type. Please upload PDF, DOC, DOCX, or TXT files.'));
+      cb(new Error('Unsupported file type. Please upload PDF, DOC, DOCX, TXT, or ZIP files.'));
     }
   }
 });
@@ -52,21 +52,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid document type" });
       }
 
-      // Extract text content
-      const content = extractTextFromFile(req.file.buffer, req.file.originalname);
-      
-      const documentData = insertDocumentSchema.parse({
-        name: req.file.originalname,
-        type,
-        content,
-      });
+      // Check if uploaded file is a ZIP
+      if (req.file.originalname.toLowerCase().endsWith('.zip')) {
+        try {
+          const { extractZipFiles } = await import('./services/documentProcessor');
+          const extractedFiles = await extractZipFiles(req.file.buffer);
+          
+          const createdDocuments = [];
+          
+          for (const file of extractedFiles) {
+            const documentData = insertDocumentSchema.parse({
+              name: file.name,
+              type,
+              content: file.content,
+            });
 
-      const document = await storage.createDocument(documentData);
-      
-      // Mark as completed immediately for MVP
-      await storage.updateDocumentStatus(document.id, 'completed');
+            const document = await storage.createDocument(documentData);
+            await storage.updateDocumentStatus(document.id, 'completed');
+            createdDocuments.push(document);
+          }
+          
+          res.json({ 
+            message: `Successfully extracted and uploaded ${createdDocuments.length} files from ZIP`,
+            documents: createdDocuments 
+          });
+        } catch (error) {
+          console.error('ZIP extraction error:', error);
+          res.status(500).json({ 
+            message: error instanceof Error ? error.message : "Failed to extract ZIP file" 
+          });
+        }
+      } else {
+        // Handle single file upload
+        const content = extractTextFromFile(req.file.buffer, req.file.originalname);
+        
+        const documentData = insertDocumentSchema.parse({
+          name: req.file.originalname,
+          type,
+          content,
+        });
 
-      res.json(document);
+        const document = await storage.createDocument(documentData);
+        
+        // Mark as completed immediately for MVP
+        await storage.updateDocumentStatus(document.id, 'completed');
+
+        res.json(document);
+      }
     } catch (error) {
       console.error('Upload error:', error);
       res.status(500).json({ 

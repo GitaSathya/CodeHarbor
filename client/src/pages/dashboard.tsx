@@ -69,8 +69,8 @@ export default function Dashboard() {
 
               <UploadArea
                 type="consultant_profile"
-                title="Consultant Profiles"
-                description="Upload consultant profiles (bulk supported)"
+                title="Applicant Profiles"
+                description="Upload applicant profiles (bulk supported, ZIP files accepted)"
               />
             </div>
 
