@@ -1,4 +1,3 @@
-
 import { Trophy, AlertTriangle, Filter, Search, Clock, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "@/contexts/theme-context";
 import { useState } from "react";
 
 interface NotificationSettings {
@@ -21,6 +22,7 @@ interface NotificationSettings {
 
 export default function Settings() {
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
   const [settings, setSettings] = useState<NotificationSettings>({
     emailNotifications: true,
     processingAlerts: true,
@@ -277,7 +279,10 @@ export default function Settings() {
                         Switch between light and dark theme
                       </p>
                     </div>
-                    <Switch />
+                    <Switch 
+                      checked={theme === "dark"}
+                      onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+                    />
                   </div>
                 </div>
               </CardContent>
