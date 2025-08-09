@@ -1,3 +1,4 @@
+
 import { storage } from "../storage";
 import { analyzeDocumentSimilarity, extractJobTitle } from "./gemini";
 import * as yauzl from 'yauzl';
@@ -18,10 +19,14 @@ export async function processJobAnalysis(jobDescriptionId: string): Promise<void
       jobTitle,
     });
 
-    // Get all consultant profiles
+    // Get consultant profiles specifically for this job
     const allDocs = await storage.getAllDocuments();
     const consultantProfiles = allDocs
-      .filter(doc => doc.type === 'consultant_profile' && doc.status === 'completed')
+      .filter(doc => 
+        doc.type === 'consultant_profile' && 
+        doc.status === 'completed' &&
+        doc.jobDescriptionId === jobDescriptionId
+      )
       .map(doc => ({
         id: doc.id,
         name: doc.name,
@@ -33,7 +38,7 @@ export async function processJobAnalysis(jobDescriptionId: string): Promise<void
       return;
     }
 
-    // Analyze similarity using OpenAI
+    // Analyze similarity using Gemini
     const matches = await analyzeDocumentSimilarity(jobDoc.content, consultantProfiles);
 
     // Update analysis with results
@@ -46,29 +51,29 @@ export async function processJobAnalysis(jobDescriptionId: string): Promise<void
 }
 
 export function extractTextFromFile(buffer: Buffer, filename: string): string {
-  // For MVP, we'll assume text files or simple extraction
-  // In production, you'd use libraries like pdf-parse, mammoth for docx, etc.
-  const extension = filename.toLowerCase().split('.').pop();
+  // For MVP, just convert buffer to string
+  // In production, you'd use proper PDF/Word parsing libraries
+  const content = buffer.toString('utf8');
   
-  if (extension === 'txt') {
-    return buffer.toString('utf-8');
+  // Basic cleanup for common file types
+  if (filename.toLowerCase().endsWith('.pdf')) {
+    // PDF files might have binary content, so we'll just return a placeholder
+    return `[PDF Content] - ${filename}\n\nContent extracted from PDF file. In production, use proper PDF parsing library.`;
   }
   
-  // For PDF and DOC files, return placeholder for now
-  // In production, implement proper extraction
-  return buffer.toString('utf-8');
+  return content;
 }
 
 export async function extractZipFiles(buffer: Buffer): Promise<Array<{ name: string; content: string }>> {
   return new Promise((resolve, reject) => {
-    const extractedFiles: Array<{ name: string; content: string }> = [];
+    const files: Array<{ name: string; content: string }> = [];
     
     yauzl.fromBuffer(buffer, { lazyEntries: true }, (err, zipfile) => {
       if (err) {
-        reject(err);
+        reject(new Error(`Failed to read ZIP file: ${err.message}`));
         return;
       }
-      
+
       if (!zipfile) {
         reject(new Error('Invalid ZIP file'));
         return;
@@ -77,26 +82,26 @@ export async function extractZipFiles(buffer: Buffer): Promise<Array<{ name: str
       zipfile.readEntry();
 
       zipfile.on('entry', (entry) => {
+        // Skip directories
         if (/\/$/.test(entry.fileName)) {
-          // Directory entry, skip
           zipfile.readEntry();
           return;
         }
 
-        // Check if file has supported extension
+        // Only process supported file types
         const supportedExtensions = ['.pdf', '.doc', '.docx', '.txt'];
-        const hasValidExtension = supportedExtensions.some(ext => 
+        const isSupported = supportedExtensions.some(ext => 
           entry.fileName.toLowerCase().endsWith(ext)
         );
 
-        if (!hasValidExtension) {
+        if (!isSupported) {
           zipfile.readEntry();
           return;
         }
 
         zipfile.openReadStream(entry, (err, readStream) => {
           if (err) {
-            reject(err);
+            reject(new Error(`Failed to read entry ${entry.fileName}: ${err.message}`));
             return;
           }
 
@@ -106,16 +111,15 @@ export async function extractZipFiles(buffer: Buffer): Promise<Array<{ name: str
           }
 
           const chunks: Buffer[] = [];
-          
           readStream.on('data', (chunk) => {
             chunks.push(chunk);
           });
 
           readStream.on('end', () => {
-            const fileBuffer = Buffer.concat(chunks);
-            const content = extractTextFromFile(fileBuffer, entry.fileName);
+            const buffer = Buffer.concat(chunks);
+            const content = extractTextFromFile(buffer, entry.fileName);
             
-            extractedFiles.push({
+            files.push({
               name: entry.fileName,
               content: content
             });
@@ -124,17 +128,17 @@ export async function extractZipFiles(buffer: Buffer): Promise<Array<{ name: str
           });
 
           readStream.on('error', (err) => {
-            reject(err);
+            reject(new Error(`Error reading ${entry.fileName}: ${err.message}`));
           });
         });
       });
 
       zipfile.on('end', () => {
-        resolve(extractedFiles);
+        resolve(files);
       });
 
       zipfile.on('error', (err) => {
-        reject(err);
+        reject(new Error(`ZIP processing error: ${err.message}`));
       });
     });
   });

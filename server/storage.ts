@@ -1,121 +1,88 @@
-import { type Document, type Analysis, type InsertDocument, type InsertAnalysis, type MatchResult, type DocumentStats } from "@shared/schema";
-import { randomUUID } from "crypto";
 
-export interface IStorage {
-  // Document operations
-  createDocument(document: InsertDocument): Promise<Document>;
-  getDocument(id: string): Promise<Document | undefined>;
-  getAllDocuments(): Promise<Document[]>;
-  deleteDocument(id: string): Promise<boolean>;
-  updateDocumentStatus(id: string, status: string): Promise<void>;
-  
-  // Analysis operations
-  createAnalysis(analysis: InsertAnalysis): Promise<Analysis>;
-  getAnalysis(id: string): Promise<Analysis | undefined>;
-  getAllAnalyses(): Promise<Analysis[]>;
-  updateAnalysisStatus(id: string, status: string, matches?: MatchResult[]): Promise<void>;
-  
-  // Stats
-  getStats(): Promise<DocumentStats>;
-}
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import { documents, analyses, type Document, type Analysis, type InsertDocument, type InsertAnalysis, type DocumentStats, type MatchResult } from "@shared/schema";
+import { eq, count, and } from "drizzle-orm";
 
-export class MemStorage implements IStorage {
-  private documents: Map<string, Document>;
-  private analyses: Map<string, Analysis>;
+const connectionString = process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/postgres";
+const client = postgres(connectionString);
+const db = drizzle(client);
 
-  constructor() {
-    this.documents = new Map();
-    this.analyses = new Map();
-  }
-
-  async createDocument(insertDocument: InsertDocument): Promise<Document> {
-    const id = randomUUID();
-    const document: Document = {
-      ...insertDocument,
-      id,
-      status: 'processing',
-      uploadedAt: new Date(),
-    };
-    this.documents.set(id, document);
+export const storage = {
+  async createDocument(data: InsertDocument): Promise<Document> {
+    const [document] = await db.insert(documents).values(data).returning();
     return document;
-  }
+  },
 
   async getDocument(id: string): Promise<Document | undefined> {
-    return this.documents.get(id);
-  }
+    const [document] = await db.select().from(documents).where(eq(documents.id, id));
+    return document;
+  },
 
   async getAllDocuments(): Promise<Document[]> {
-    return Array.from(this.documents.values()).sort((a, b) => 
-      new Date(b.uploadedAt!).getTime() - new Date(a.uploadedAt!).getTime()
-    );
-  }
+    return await db.select().from(documents).orderBy(documents.uploadedAt);
+  },
 
-  async deleteDocument(id: string): Promise<boolean> {
-    return this.documents.delete(id);
-  }
+  async getDocumentsByJob(jobDescriptionId: string): Promise<Document[]> {
+    return await db.select().from(documents).where(
+      and(
+        eq(documents.jobDescriptionId, jobDescriptionId),
+        eq(documents.type, 'consultant_profile')
+      )
+    ).orderBy(documents.uploadedAt);
+  },
 
   async updateDocumentStatus(id: string, status: string): Promise<void> {
-    const document = this.documents.get(id);
-    if (document) {
-      document.status = status;
-      this.documents.set(id, document);
-    }
-  }
+    await db.update(documents).set({ status }).where(eq(documents.id, id));
+  },
 
-  async createAnalysis(insertAnalysis: InsertAnalysis): Promise<Analysis> {
-    const id = randomUUID();
-    const analysis: Analysis = {
-      ...insertAnalysis,
-      id,
-      status: 'processing',
-      matches: null,
-      createdAt: new Date(),
-    };
-    this.analyses.set(id, analysis);
+  async deleteDocument(id: string): Promise<boolean> {
+    const result = await db.delete(documents).where(eq(documents.id, id));
+    return result.rowCount > 0;
+  },
+
+  async createAnalysis(data: InsertAnalysis): Promise<Analysis> {
+    const [analysis] = await db.insert(analyses).values(data).returning();
     return analysis;
-  }
-
-  async getAnalysis(id: string): Promise<Analysis | undefined> {
-    return this.analyses.get(id);
-  }
+  },
 
   async getAllAnalyses(): Promise<Analysis[]> {
-    return Array.from(this.analyses.values()).sort((a, b) => 
-      new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime()
-    );
-  }
+    return await db.select().from(analyses).orderBy(analyses.createdAt);
+  },
 
-  async updateAnalysisStatus(id: string, status: string, matches?: MatchResult[]): Promise<void> {
-    const analysis = this.analyses.get(id);
-    if (analysis) {
-      analysis.status = status;
-      if (matches) {
-        analysis.matches = matches;
-      }
-      this.analyses.set(id, analysis);
-    }
-  }
+  async updateAnalysisStatus(id: string, status: string, results?: MatchResult[]): Promise<void> {
+    await db.update(analyses).set({ 
+      status, 
+      results: results ? JSON.stringify(results) : undefined 
+    }).where(eq(analyses.id, id));
+  },
 
   async getStats(): Promise<DocumentStats> {
-    const documents = Array.from(this.documents.values());
-    const analyses = Array.from(this.analyses.values());
-    
-    const totalDocuments = documents.length;
-    const activeJobs = documents.filter(d => d.type === 'job_description' && d.status === 'completed').length;
-    const processing = documents.filter(d => d.status === 'processing').length + 
-                      analyses.filter(a => a.status === 'processing').length;
-    
-    const matchesFound = analyses
-      .filter(a => a.matches)
-      .reduce((sum, a) => sum + (Array.isArray(a.matches) ? a.matches.length : 0), 0);
+    const [totalDocsResult] = await db.select({ count: count() }).from(documents);
+    const [activeJobsResult] = await db.select({ count: count() }).from(documents).where(
+      and(
+        eq(documents.type, 'job_description'),
+        eq(documents.status, 'completed')
+      )
+    );
+    const [processingResult] = await db.select({ count: count() }).from(documents).where(
+      eq(documents.status, 'processing')
+    );
+
+    // Count total matches across all analyses
+    const allAnalyses = await db.select().from(analyses).where(eq(analyses.status, 'completed'));
+    const matchesFound = allAnalyses.reduce((total, analysis) => {
+      if (analysis.results && Array.isArray(analysis.results)) {
+        return total + analysis.results.length;
+      }
+      return total;
+    }, 0);
 
     return {
-      totalDocuments,
-      activeJobs,
+      totalDocuments: totalDocsResult.count,
+      activeJobs: activeJobsResult.count,
       matchesFound,
-      processing,
+      processing: processingResult.count,
     };
-  }
-}
-
-export const storage = new MemStorage();
+  },
+};

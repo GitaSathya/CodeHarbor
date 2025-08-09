@@ -1,4 +1,5 @@
-import { FileText, Upload, Trash2, Eye, Download, Filter, FolderOpen, Briefcase, Users, CheckCircle, Play } from "lucide-react";
+
+import { FileText, Upload, Trash2, Eye, Download, Filter, FolderOpen, Briefcase, Users, CheckCircle, Play, Building } from "lucide-react";
 import Header from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 export default function Documents() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
+  const [selectedJobId, setSelectedJobId] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -27,10 +29,13 @@ export default function Documents() {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: async ({ file, type }: { file: File; type: string }) => {
+    mutationFn: async ({ file, type, jobDescriptionId }: { file: File; type: string; jobDescriptionId?: string }) => {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('type', type);
+      if (jobDescriptionId) {
+        formData.append('jobDescriptionId', jobDescriptionId);
+      }
 
       const response = await fetch('/api/documents/upload', {
         method: 'POST',
@@ -107,58 +112,51 @@ export default function Documents() {
     const files = Array.from(event.target.files || []);
 
     files.forEach((file) => {
-      // Auto-detect document type based on filename or let user specify
       let type = "consultant_profile";
       const fileName = file.name.toLowerCase();
 
       if (fileName.includes('job') || fileName.includes('position') || fileName.includes('role')) {
         type = "job_description";
       }
-      // If the file is a zip, we should uncompress it and upload each file individually
-      if (file.type === 'application/zip') {
-        // This part would need a backend API call to handle unzipping
-        // For now, we'll just log that it's a zip file
-        console.log(`Handling zip file: ${file.name}`);
-        // In a real application, you'd send the zip file to a backend endpoint
-        // that handles unzipping and then processing each file within the zip.
-        // For demonstration, we'll assume a backend endpoint `/api/documents/upload-zip`
-        // that takes the zip file and returns an array of uploaded documents.
-        // uploadMutation.mutate({ file, type: 'zip' }); // This would need a separate mutation or modification to uploadMutation
-      } else {
-        uploadMutation.mutate({ file, type });
-      }
+
+      uploadMutation.mutate({ 
+        file, 
+        type, 
+        jobDescriptionId: type === 'consultant_profile' ? selectedJobId : undefined 
+      });
     });
 
     // Reset input
     event.target.value = '';
   };
 
+  // Prepare data
+  const jobDescriptions = documents.filter(doc => doc.type === 'job_description');
+  const applicantProfiles = documents.filter(doc => doc.type === 'consultant_profile');
+
   const filteredDocuments = useMemo(() => {
     return documents.filter((doc) => {
       const matchesSearchTerm = doc.name.toLowerCase().includes(searchTerm.toLowerCase());
       const docTypeDisplay = doc.type === 'job_description' ? 'Job Description' : 'Applicant Profile';
       const matchesFilterType = filterType === 'all' || docTypeDisplay === filterType;
-      return matchesSearchTerm && matchesFilterType;
+      const matchesJobFilter = selectedJobId === '' || doc.jobDescriptionId === selectedJobId || doc.id === selectedJobId;
+      return matchesSearchTerm && matchesFilterType && matchesJobFilter;
     });
-  }, [documents, searchTerm, filterType]);
-
-  // Prepare jobs data for the table
-  const jobDescriptions = documents.filter(doc => doc.type === 'job_description');
-  const applicantProfiles = documents.filter(doc => doc.type === 'consultant_profile');
+  }, [documents, searchTerm, filterType, selectedJobId]);
 
   const jobsTableData = jobDescriptions.map((job) => {
     const relatedAnalysis = analyses.find(analysis => analysis.jobDescriptionId === job.id);
-    const totalApplicants = applicantProfiles.length;
+    const jobApplicants = applicantProfiles.filter(profile => profile.jobDescriptionId === job.id);
     const shortlistedCount = relatedAnalysis?.results?.length || 0;
 
     return {
       id: job.id,
       jobTitle: relatedAnalysis?.jobTitle || job.name.replace(/\.(pdf|docx?|txt)$/i, ''),
       jobDescription: job.content.substring(0, 100) + (job.content.length > 100 ? '...' : ''),
-      totalApplicants,
+      totalApplicants: jobApplicants.length,
       shortlistedApplicants: shortlistedCount,
       status: relatedAnalysis?.status || 'Not Analyzed',
-      uploadDate: job.createdAt,
+      uploadDate: job.createdAt || job.uploadedAt,
     };
   });
 
@@ -169,21 +167,37 @@ export default function Documents() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Applicant Profiles</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">Manage your job descriptions and applicant profiles</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Document Management</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">Manage job descriptions and applicant profiles</p>
           </div>
-          <div className="relative inline-block">
-            <input
-              type="file"
-              multiple
-              accept=".pdf,.doc,.docx,.txt,.zip"
-              onChange={handleFileUpload}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-            />
-            <Button className="flex items-center space-x-2">
-              <Upload className="w-4 h-4" />
-              <span>Upload Documents</span>
-            </Button>
+          <div className="flex items-center space-x-4">
+            {jobDescriptions.length > 0 && (
+              <Select value={selectedJobId} onValueChange={setSelectedJobId}>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Select job for applicant upload..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {jobDescriptions.map(job => (
+                    <SelectItem key={job.id} value={job.id}>
+                      {job.name.replace(/\.(pdf|docx?|txt)$/i, '')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <div className="relative inline-block">
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.txt,.zip"
+                onChange={handleFileUpload}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+              />
+              <Button className="flex items-center space-x-2">
+                <Upload className="w-4 h-4" />
+                <span>Upload Documents</span>
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -289,7 +303,7 @@ export default function Documents() {
             <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No documents found</h3>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
               {documents.length === 0 
-                ? "Get started by uploading your first job description or applicant profile."
+                ? "Get started by uploading your first job description."
                 : "Try adjusting your search or filter criteria."
               }</p>
             <div className="relative inline-block">
@@ -308,75 +322,87 @@ export default function Documents() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredDocuments.map((doc) => (
-              <Card key={doc.id} className="group hover:shadow-lg transition-shadow duration-200">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <FileText className="w-8 h-8 text-primary flex-shrink-0" />
-                    <Badge 
-                      variant={
-                        doc.status === 'completed' ? 'default' : 
-                        doc.status === 'processing' ? 'secondary' : 'destructive'
-                      }
-                      className="text-xs"
-                    >
-                      {doc.status === 'completed' ? 'Processed' : 
-                       doc.status === 'processing' ? 'Processing' : 'Failed'}
-                    </Badge>
-                  </div>
-                  <CardTitle className="text-sm font-medium leading-tight line-clamp-2">
-                    {doc.name}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
-                    <div className="flex justify-between">
-                      <span>Type:</span>
-                      <span className="font-medium">
-                        {doc.type === 'job_description' ? 'Job Description' : 'Applicant Profile'}
-                      </span>
+            {filteredDocuments.map((doc) => {
+              const relatedJob = doc.jobDescriptionId ? jobDescriptions.find(job => job.id === doc.jobDescriptionId) : null;
+              
+              return (
+                <Card key={doc.id} className="group hover:shadow-lg transition-shadow duration-200">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <FileText className="w-8 h-8 text-primary flex-shrink-0" />
+                      <Badge 
+                        variant={
+                          doc.status === 'completed' ? 'default' : 
+                          doc.status === 'processing' ? 'secondary' : 'destructive'
+                        }
+                        className="text-xs"
+                      >
+                        {doc.status === 'completed' ? 'Processed' : 
+                         doc.status === 'processing' ? 'Processing' : 'Failed'}
+                      </Badge>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Date:</span>
-                      <span>{new Date(doc.createdAt).toLocaleDateString()}</span>
+                    <CardTitle className="text-sm font-medium leading-tight line-clamp-2">
+                      {doc.name}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                      <div className="flex justify-between">
+                        <span>Type:</span>
+                        <span className="font-medium">
+                          {doc.type === 'job_description' ? 'Job Description' : 'Applicant Profile'}
+                        </span>
+                      </div>
+                      {relatedJob && (
+                        <div className="flex justify-between">
+                          <span>Job:</span>
+                          <span className="font-medium text-blue-600 truncate max-w-24" title={relatedJob.name}>
+                            {relatedJob.name.replace(/\.(pdf|docx?|txt)$/i, '')}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span>Date:</span>
+                        <span>{new Date(doc.createdAt || doc.uploadedAt).toLocaleDateString()}</span>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center justify-between mt-4 pt-3 border-t">
-                    <div className="flex space-x-1">
+                    <div className="flex items-center justify-between mt-4 pt-3 border-t">
+                      <div className="flex space-x-1">
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleViewDocument(doc)}
+                          title="View document"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleDownloadDocument(doc)}
+                          title="Download document"
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                      </div>
                       <Button 
                         size="sm" 
                         variant="ghost" 
-                        className="h-8 w-8 p-0"
-                        onClick={() => handleViewDocument(doc)}
-                        title="View document"
+                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                        onClick={() => handleDeleteDocument(doc.id)}
+                        title="Delete document"
+                        disabled={deleteMutation.isPending}
                       >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        className="h-8 w-8 p-0"
-                        onClick={() => handleDownloadDocument(doc)}
-                        title="Download document"
-                      >
-                        <Download className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
-                    <Button 
-                      size="sm" 
-                      variant="ghost" 
-                      className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
-                      onClick={() => handleDeleteDocument(doc.id)}
-                      title="Delete document"
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </main>

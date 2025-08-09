@@ -1,26 +1,31 @@
-import { Upload, FileText, Users } from "lucide-react";
-import { useCallback, useState } from "react";
-import { useDropzone } from "react-dropzone";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
+
+import { useState } from 'react';
+import { FileText, Users, Upload } from 'lucide-react';
+import { useDropzone } from 'react-dropzone';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
 
 interface UploadAreaProps {
   type: 'job_description' | 'consultant_profile';
   title: string;
   description: string;
+  selectedJobId?: string;
+  disabled?: boolean;
 }
 
-export default function UploadArea({ type, title, description }: UploadAreaProps) {
+export default function UploadArea({ type, title, description, selectedJobId, disabled = false }: UploadAreaProps) {
   const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const uploadMutation = useMutation({
-    mutationFn: async ({ file, type }: { file: File; type: string }) => {
+    mutationFn: async ({ file, type, jobDescriptionId }: { file: File; type: string; jobDescriptionId?: string }) => {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('type', type);
+      if (jobDescriptionId) {
+        formData.append('jobDescriptionId', jobDescriptionId);
+      }
 
       const response = await fetch('/api/documents/upload', {
         method: 'POST',
@@ -37,30 +42,23 @@ export default function UploadArea({ type, title, description }: UploadAreaProps
     onSuccess: async (uploadedDoc) => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
       queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
-
-      // If this is a job description, automatically trigger analysis
-      if (uploadedDoc.type === 'job_description') {
-        try {
-          await apiRequest('POST', '/api/analysis', { jobDescriptionId: uploadedDoc.id });
-          queryClient.invalidateQueries({ queryKey: ['/api/analyses'] });
-          toast({
-            title: "Upload successful",
-            description: "Job description uploaded and analysis started automatically",
-          });
-        } catch (error) {
-          toast({
-            title: "Upload successful",
-            description: "Document uploaded successfully, but analysis failed to start",
-          });
-        }
+      
+      setIsUploading(false);
+      
+      if (Array.isArray(uploadedDoc.documents)) {
+        toast({
+          title: "ZIP file processed",
+          description: `Successfully uploaded ${uploadedDoc.documents.length} files`,
+        });
       } else {
         toast({
           title: "Upload successful",
-          description: "Document uploaded successfully",
+          description: `${uploadedDoc.name} uploaded successfully`,
         });
       }
     },
     onError: (error) => {
+      setIsUploading(false);
       toast({
         title: "Upload failed",
         description: error.message,
@@ -69,18 +67,26 @@ export default function UploadArea({ type, title, description }: UploadAreaProps
     },
   });
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (acceptedFiles.length === 0) return;
+  const onDrop = (acceptedFiles: File[]) => {
+    if (disabled) {
+      toast({
+        title: "Upload disabled",
+        description: type === 'consultant_profile' ? "Please upload a job description first" : "Upload is currently disabled",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsUploading(true);
-    try {
-      for (const file of acceptedFiles) {
-        await uploadMutation.mutateAsync({ file, type });
-      }
-    } finally {
-      setIsUploading(false);
-    }
-  }, [uploadMutation, type]);
+    
+    acceptedFiles.forEach((file) => {
+      uploadMutation.mutate({ 
+        file, 
+        type, 
+        jobDescriptionId: type === 'consultant_profile' ? selectedJobId : undefined 
+      });
+    });
+  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -92,6 +98,7 @@ export default function UploadArea({ type, title, description }: UploadAreaProps
       'application/zip': ['.zip'],
     },
     multiple: type === 'consultant_profile',
+    disabled: disabled || isUploading,
   });
 
   const Icon = type === 'job_description' ? FileText : Users;
@@ -104,15 +111,19 @@ export default function UploadArea({ type, title, description }: UploadAreaProps
         className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
           isDragActive
             ? 'border-primary bg-blue-50'
+            : disabled 
+            ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
             : 'border-gray-300 hover:border-primary'
         } ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
       >
         <input {...getInputProps()} />
-        <Icon className="text-gray-400 text-4xl mb-2 mx-auto" />
-        <p className="text-sm text-gray-600">
-          {isUploading ? 'Uploading...' : description}
+        <Icon className={`text-4xl mb-2 mx-auto ${disabled ? 'text-gray-300' : 'text-gray-400'}`} />
+        <p className={`text-sm ${disabled ? 'text-gray-400' : 'text-gray-600'}`}>
+          {isUploading ? 'Uploading...' : disabled ? 'Upload a job description first' : description}
         </p>
-        <p className="text-xs text-gray-500 mt-1">Supports PDF, DOC, TXT, ZIP</p>
+        <p className={`text-xs mt-1 ${disabled ? 'text-gray-300' : 'text-gray-500'}`}>
+          Supports PDF, DOC, TXT, ZIP
+        </p>
       </div>
     </div>
   );

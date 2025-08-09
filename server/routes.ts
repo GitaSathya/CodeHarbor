@@ -1,3 +1,4 @@
+
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
@@ -47,9 +48,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const { type } = req.body;
+      const { type, jobDescriptionId } = req.body;
       if (!type || !['job_description', 'consultant_profile'].includes(type)) {
         return res.status(400).json({ message: "Invalid document type" });
+      }
+
+      // Validate jobDescriptionId for consultant profiles
+      if (type === 'consultant_profile' && !jobDescriptionId) {
+        return res.status(400).json({ message: "Job description ID is required for consultant profiles" });
+      }
+
+      // Verify job description exists if provided
+      if (jobDescriptionId) {
+        const jobExists = await storage.getDocument(jobDescriptionId);
+        if (!jobExists || jobExists.type !== 'job_description') {
+          return res.status(400).json({ message: "Invalid job description ID" });
+        }
       }
 
       // Check if uploaded file is a ZIP
@@ -65,6 +79,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               name: file.name,
               type,
               content: file.content,
+              jobDescriptionId: type === 'consultant_profile' ? jobDescriptionId : undefined,
             });
 
             const document = await storage.createDocument(documentData);
@@ -90,6 +105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           name: req.file.originalname,
           type,
           content,
+          jobDescriptionId: type === 'consultant_profile' ? jobDescriptionId : undefined,
         });
 
         const document = await storage.createDocument(documentData);
