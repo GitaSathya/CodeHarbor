@@ -22,7 +22,10 @@ export default function AnalysisResults() {
 
   const startAnalysisMutation = useMutation({
     mutationFn: async (jobDescriptionId: string) => {
-      const response = await apiRequest('POST', '/api/analysis', { jobDescriptionId });
+      const response = await apiRequest('POST', '/api/analysis', { 
+        jobDescriptionId,
+        userEmail: 'hr@company.com' // You can get this from user context/settings
+      });
       return response.json();
     },
     onSuccess: () => {

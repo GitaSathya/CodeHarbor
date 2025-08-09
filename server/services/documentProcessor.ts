@@ -1,9 +1,11 @@
 
 import { storage } from "../storage";
 import { analyzeDocumentSimilarity, extractJobTitle } from "./gemini";
+import { emailService } from "./emailService";
+import { notificationService } from "./notificationService";
 import * as yauzl from 'yauzl';
 
-export async function processJobAnalysis(jobDescriptionId: string): Promise<void> {
+export async function processJobAnalysis(jobDescriptionId: string, userEmail?: string): Promise<void> {
   try {
     const jobDoc = await storage.getDocument(jobDescriptionId);
     if (!jobDoc || jobDoc.type !== 'job_description') {
@@ -18,6 +20,9 @@ export async function processJobAnalysis(jobDescriptionId: string): Promise<void
       jobDescriptionId,
       jobTitle,
     });
+
+    // Notify processing started
+    await notificationService.notifyProcessingStarted(jobTitle);
 
     // Get consultant profiles specifically for this job
     const allDocs = await storage.getAllDocuments();
@@ -35,6 +40,19 @@ export async function processJobAnalysis(jobDescriptionId: string): Promise<void
 
     if (consultantProfiles.length === 0) {
       await storage.updateAnalysisStatus(analysis.id, 'completed', []);
+      
+      // Notify completion
+      await notificationService.notifyProcessingComplete(jobTitle, 0);
+      
+      // Send email notification if enabled and email provided
+      if (userEmail) {
+        try {
+          await emailService.sendProcessingCompleteEmail(userEmail, jobTitle, 0);
+        } catch (emailError) {
+          console.error('Failed to send completion email:', emailError);
+        }
+      }
+      
       return;
     }
 
@@ -44,8 +62,59 @@ export async function processJobAnalysis(jobDescriptionId: string): Promise<void
     // Update analysis with results
     await storage.updateAnalysisStatus(analysis.id, 'completed', matches);
 
+    // Notify processing completion
+    await notificationService.notifyProcessingComplete(jobTitle, matches.length);
+
+    // Check for high similarity matches (80%+)
+    const highSimilarityMatches = matches.filter(match => match.overallScore >= 80);
+    
+    if (highSimilarityMatches.length > 0) {
+      // Notify about high similarity matches
+      await notificationService.notifyHighSimilarityMatch(jobTitle, highSimilarityMatches);
+      
+      // Send high similarity email alert if enabled and email provided
+      if (userEmail) {
+        try {
+          await emailService.sendHighSimilarityMatchEmail(userEmail, jobTitle, {
+            jobTitle,
+            matchCount: matches.length,
+            highSimilarityMatches: highSimilarityMatches.map(match => ({
+              name: match.profileName,
+              score: match.overallScore
+            }))
+          });
+        } catch (emailError) {
+          console.error('Failed to send high similarity email:', emailError);
+        }
+      }
+    }
+
+    // Send general completion email if enabled and email provided
+    if (userEmail) {
+      try {
+        await emailService.sendProcessingCompleteEmail(userEmail, jobTitle, matches.length);
+      } catch (emailError) {
+        console.error('Failed to send completion email:', emailError);
+      }
+    }
+
   } catch (error) {
     console.error('Error processing job analysis:', error);
+    
+    // Try to get job title for error notification
+    let jobTitle = 'Unknown Job';
+    try {
+      const jobDoc = await storage.getDocument(jobDescriptionId);
+      if (jobDoc) {
+        jobTitle = await extractJobTitle(jobDoc.content);
+      }
+    } catch (titleError) {
+      console.error('Failed to get job title for error notification:', titleError);
+    }
+    
+    // Notify failure
+    await notificationService.notifyAnalysisFailed(jobTitle);
+    
     throw error;
   }
 }

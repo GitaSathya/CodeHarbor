@@ -1,15 +1,64 @@
 
-import { Settings as SettingsIcon, User, Bell, Shield, Database, Palette } from "lucide-react";
+import { Bell, Mail, CheckCircle, AlertTriangle, Settings as SettingsIcon, Save, User } from "lucide-react";
 import Header from "@/components/header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
+
+interface NotificationSettings {
+  emailNotifications: boolean;
+  processingAlerts: boolean;
+  matchNotifications: boolean;
+  highSimilarityThreshold: number;
+  emailAddress: string;
+}
 
 export default function Settings() {
+  const { toast } = useToast();
+  const [settings, setSettings] = useState<NotificationSettings>({
+    emailNotifications: true,
+    processingAlerts: true,
+    matchNotifications: true,
+    highSimilarityThreshold: 80,
+    emailAddress: 'hr@company.com',
+  });
+
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSettingChange = (key: keyof NotificationSettings, value: any) => {
+    setSettings(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      toast({
+        title: "Settings saved",
+        description: "Your notification preferences have been updated.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save settings. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header />
@@ -17,174 +66,224 @@ export default function Settings() {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">Manage your account and application preferences</p>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">Manage your account and notification preferences</p>
         </div>
 
-        <div className="space-y-8">
-          {/* Profile Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <User className="w-5 h-5 text-primary" />
-                <span>Profile Settings</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" placeholder="John" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" placeholder="Doe" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <Input id="email" type="email" placeholder="john.doe@company.com" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="company">Company</Label>
-                <Input id="company" placeholder="Acme Corp" />
-              </div>
-              <Button>Update Profile</Button>
-            </CardContent>
-          </Card>
+        <Tabs defaultValue="notifications" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="notifications" className="flex items-center space-x-2">
+              <Bell className="w-4 h-4" />
+              <span>Notifications</span>
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="flex items-center space-x-2">
+              <User className="w-4 h-4" />
+              <span>Profile</span>
+            </TabsTrigger>
+            <TabsTrigger value="general" className="flex items-center space-x-2">
+              <SettingsIcon className="w-4 h-4" />
+              <span>General</span>
+            </TabsTrigger>
+          </TabsList>
 
-          {/* Notification Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Bell className="w-5 h-5 text-primary" />
-                <span>Notification Settings</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-base font-medium">Email Notifications</Label>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Receive email updates about matches and processing</p>
-                </div>
-                <Switch />
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-base font-medium">Processing Alerts</Label>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Get notified when document processing completes</p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-base font-medium">Match Notifications</Label>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Receive alerts for new matches above 80% similarity</p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-            </CardContent>
-          </Card>
+          <TabsContent value="notifications" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Bell className="w-5 h-5 text-primary" />
+                  <span>Notification Settings</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Email Notifications */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <Mail className="w-5 h-5 text-blue-600" />
+                      <div>
+                        <h3 className="font-medium">Email Notifications</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Receive email updates about matches and processing
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={settings.emailNotifications}
+                      onCheckedChange={(checked) => handleSettingChange('emailNotifications', checked)}
+                    />
+                  </div>
 
-          {/* AI & Processing Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Database className="w-5 h-5 text-primary" />
-                <span>AI & Processing Settings</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="matchThreshold">Match Similarity Threshold</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select threshold" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="50">50% - Show all matches</SelectItem>
-                    <SelectItem value="65">65% - Good matches</SelectItem>
-                    <SelectItem value="80">80% - High quality matches</SelectItem>
-                    <SelectItem value="90">90% - Only excellent matches</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="maxResults">Maximum Results per Query</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select max results" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10 results</SelectItem>
-                    <SelectItem value="25">25 results</SelectItem>
-                    <SelectItem value="50">50 results</SelectItem>
-                    <SelectItem value="100">100 results</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-base font-medium">Auto-process uploads</Label>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Automatically process documents when uploaded</p>
+                  {settings.emailNotifications && (
+                    <div className="ml-8 space-y-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="email">Email Address</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          value={settings.emailAddress}
+                          onChange={(e) => handleSettingChange('emailAddress', e.target.value)}
+                          placeholder="Enter your HR email address"
+                        />
+                        <p className="text-xs text-gray-500">
+                          This email will receive all notification alerts
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <Switch defaultChecked />
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Security Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Shield className="w-5 h-5 text-primary" />
-                <span>Security Settings</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="currentPassword">Current Password</Label>
-                <Input id="currentPassword" type="password" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="newPassword">New Password</Label>
-                <Input id="newPassword" type="password" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                <Input id="confirmPassword" type="password" />
-              </div>
-              <Button>Change Password</Button>
-            </CardContent>
-          </Card>
+                <Separator />
 
-          {/* Data Management */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Database className="w-5 h-5 text-primary" />
-                <span>Data Management</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div>
-                  <h4 className="font-medium">Export Data</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Download all your documents and matches</p>
+                {/* Processing Alerts */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <div>
+                      <h3 className="font-medium">Processing Alerts</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Get notified when document processing completes
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={settings.processingAlerts}
+                    onCheckedChange={(checked) => handleSettingChange('processingAlerts', checked)}
+                  />
                 </div>
-                <Button variant="outline">Export</Button>
-              </div>
-              <div className="flex items-center justify-between p-4 border border-red-200 dark:border-red-800 rounded-lg">
-                <div>
-                  <h4 className="font-medium text-red-600">Delete All Data</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Permanently remove all documents and matches</p>
+
+                <Separator />
+
+                {/* Match Notifications */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <AlertTriangle className="w-5 h-5 text-orange-600" />
+                      <div>
+                        <h3 className="font-medium">Match Notifications</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Receive alerts for new matches above similarity threshold
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={settings.matchNotifications}
+                      onCheckedChange={(checked) => handleSettingChange('matchNotifications', checked)}
+                    />
+                  </div>
+
+                  {settings.matchNotifications && (
+                    <div className="ml-8 space-y-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="threshold">High Similarity Threshold (%)</Label>
+                        <div className="flex items-center space-x-3">
+                          <Input
+                            id="threshold"
+                            type="number"
+                            min="50"
+                            max="100"
+                            value={settings.highSimilarityThreshold}
+                            onChange={(e) => handleSettingChange('highSimilarityThreshold', parseInt(e.target.value))}
+                            className="w-24"
+                          />
+                          <span className="text-sm text-gray-500">
+                            Send alerts for matches above {settings.highSimilarityThreshold}% similarity
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          You'll receive immediate notifications for high-quality matches
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <Button variant="destructive">Delete</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+
+                <Separator />
+
+                {/* Notification Preview */}
+                <div className="space-y-3">
+                  <h3 className="font-medium">Notification Types</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-center space-x-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <CheckCircle className="w-5 h-5 text-blue-600" />
+                      <div>
+                        <p className="font-medium text-sm">Processing Complete</p>
+                        <p className="text-xs text-gray-600">When analysis finishes</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                      <AlertTriangle className="w-5 h-5 text-orange-600" />
+                      <div>
+                        <p className="font-medium text-sm">High Similarity Match</p>
+                        <p className="text-xs text-gray-600">80%+ similarity found</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4">
+                  <Button onClick={handleSave} disabled={isSaving} className="w-full md:w-auto">
+                    {isSaving ? (
+                      <>
+                        <CheckCircle className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Settings
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="profile">
+            <Card>
+              <CardHeader>
+                <CardTitle>Profile Settings</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="company">Company Name</Label>
+                    <Input id="company" placeholder="Your HR Company" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input id="name" placeholder="Your full name" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Role</Label>
+                    <Input id="role" placeholder="HR Manager" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="general">
+            <Card>
+              <CardHeader>
+                <CardTitle>General Settings</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium">Dark Mode</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Switch between light and dark theme
+                      </p>
+                    </div>
+                    <Switch />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

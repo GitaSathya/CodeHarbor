@@ -4,6 +4,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertDocumentSchema, insertAnalysisSchema } from "@shared/schema";
 import { processJobAnalysis, extractTextFromFile, extractZipFiles } from "./services/documentProcessor";
+import { notificationService } from "./services/notificationService";
 import multer from "multer";
 
 const upload = multer({ 
@@ -142,10 +143,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start analysis
   app.post("/api/analysis", async (req, res) => {
     try {
-      const { jobDescriptionId } = insertAnalysisSchema.parse(req.body);
+      const { jobDescriptionId, userEmail } = req.body;
       
-      // Start analysis in background
-      processJobAnalysis(jobDescriptionId).catch(error => {
+      // Validate jobDescriptionId
+      if (!jobDescriptionId) {
+        return res.status(400).json({ message: "Job description ID is required" });
+      }
+      
+      // Start analysis in background with optional email
+      processJobAnalysis(jobDescriptionId, userEmail).catch(error => {
         console.error('Analysis failed:', error);
       });
 
@@ -162,6 +168,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(analyses);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch analyses" });
+    }
+  });
+
+  // Get notifications
+  app.get("/api/notifications", async (req, res) => {
+    try {
+      const { userId } = req.query;
+      const notifications = await notificationService.getNotifications(userId as string);
+      res.json(notifications);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch notifications" });
+    }
+  });
+
+  // Mark notification as read
+  app.put("/api/notifications/:id/read", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { userId } = req.body;
+      const success = await notificationService.markAsRead(id, userId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Notification not found" });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to mark notification as read" });
+    }
+  });
+
+  // Mark all notifications as read
+  app.put("/api/notifications/read-all", async (req, res) => {
+    try {
+      const { userId } = req.body;
+      await notificationService.markAllAsRead(userId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to mark all notifications as read" });
+    }
+  });
+
+  // Delete notification
+  app.delete("/api/notifications/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { userId } = req.body;
+      const success = await notificationService.deleteNotification(id, userId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Notification not found" });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete notification" });
     }
   });
 

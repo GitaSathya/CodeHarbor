@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useState, useEffect } from "react";
+import NotificationBell from "./notification-bell";
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
