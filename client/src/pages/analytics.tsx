@@ -1,18 +1,47 @@
 
-import { BarChart3, TrendingUp, Users, Clock, FileText, Target } from "lucide-react";
+import { BarChart3, TrendingUp, Users, Clock, FileText, Target, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import Header from "@/components/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatsCard from "@/components/stats-card";
-import { useQuery } from "@tanstack/react-query";
-import { Analysis, Document } from "@shared/schema";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Analysis, Document, MatchResult } from "@shared/schema";
 
 export default function Analytics() {
+  const queryClient = useQueryClient();
+  
   const { data: analyses = [], isLoading: analysesLoading } = useQuery<Analysis[]>({
     queryKey: ['/api/analyses'],
   });
 
   const { data: documents = [] } = useQuery<Document[]>({
     queryKey: ['/api/documents'],
+  });
+
+  // Mutation for updating candidate status
+  const updateCandidateStatus = useMutation({
+    mutationFn: async ({ analysisId, candidateId, newStatus }: { 
+      analysisId: string; 
+      candidateId: string; 
+      newStatus: 'shortlisted' | 'rejected' 
+    }) => {
+      const response = await fetch(`/api/analyses/${analysisId}/candidates/${candidateId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update candidate status');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/analyses'] });
+    },
   });
 
   // Calculate real metrics from actual data
@@ -41,6 +70,24 @@ export default function Analytics() {
   
   const consultantProfiles = documents.filter(doc => doc.type === 'consultant_profile').length;
   const processedDocuments = documents.filter(doc => doc.status === 'completed').length;
+
+  // Helper function to get candidates by status
+  const getCandidatesByStatus = (status: 'shortlisted' | 'rejected' | 'pending') => {
+    return completedAnalyses.flatMap(analysis => 
+      Array.isArray(analysis.results) 
+        ? analysis.results.filter(match => match.status === status).map(match => ({
+            ...match,
+            analysisId: analysis.id,
+            jobTitle: analysis.jobTitle,
+            analysisDate: analysis.createdAt,
+          }))
+        : []
+    );
+  };
+
+  const shortlistedCandidatesList = getCandidatesByStatus('shortlisted');
+  const rejectedCandidatesList = getCandidatesByStatus('rejected');
+  const pendingCandidatesList = getCandidatesByStatus('pending');
 
   // Recent activity from actual analyses
   const recentActivities = analyses
@@ -177,7 +224,17 @@ export default function Analytics() {
           />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Candidate Management Tabs */}
+        <Tabs defaultValue="overview" className="w-full mb-8">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="shortlisted">Shortlisted ({shortlistedCandidates})</TabsTrigger>
+            <TabsTrigger value="pending">Decision Pending ({pendingCandidates})</TabsTrigger>
+            <TabsTrigger value="rejected">Rejected ({rejectedCandidates})</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="mt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Matching Performance */}
           <Card>
             <CardHeader>
@@ -272,7 +329,193 @@ export default function Analytics() {
               </div>
             </CardContent>
           </Card>
-        </div>
+            </div>
+          </TabsContent>
+
+          {/* Shortlisted Candidates Tab */}
+          <TabsContent value="shortlisted" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <span>Shortlisted Candidates</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {shortlistedCandidatesList.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <CheckCircle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>No shortlisted candidates yet</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {shortlistedCandidatesList.map((candidate, index) => (
+                      <div key={index} className="border rounded-lg p-4 bg-green-50 dark:bg-green-900/20">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium text-green-800 dark:text-green-200">
+                            {candidate.consultantName}
+                          </h4>
+                          <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200">
+                            {candidate.overallScore}% Match
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          <strong>Job:</strong> {candidate.jobTitle}
+                        </p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          <strong>Role:</strong> {candidate.role || 'Consultant'}
+                        </p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          <strong>Experience:</strong> {candidate.experienceYears}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {candidate.matchedSkills.map((skill: string, skillIndex: number) => (
+                            <Badge key={skillIndex} variant="outline" className="text-xs">
+                              {skill}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Decision Pending Tab */}
+          <TabsContent value="pending" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <AlertCircle className="w-5 h-5 text-orange-600" />
+                  <span>Decision Pending - Manual Review Required</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {pendingCandidatesList.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>No candidates pending review</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {pendingCandidatesList.map((candidate, index) => (
+                      <div key={index} className="border rounded-lg p-4 bg-orange-50 dark:bg-orange-900/20">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium text-orange-800 dark:text-orange-200">
+                            {candidate.consultantName}
+                          </h4>
+                          <Badge variant="secondary" className="bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-200">
+                            {candidate.overallScore}% Match
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          <strong>Job:</strong> {candidate.jobTitle}
+                        </p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          <strong>Role:</strong> {candidate.role || 'Consultant'}
+                        </p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          <strong>Experience:</strong> {candidate.experienceYears}
+                        </p>
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {candidate.matchedSkills.map((skill: string, skillIndex: number) => (
+                            <Badge key={skillIndex} variant="outline" className="text-xs">
+                              {skill}
+                            </Badge>
+                          ))}
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                          <strong>Summary:</strong> {candidate.summary}
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            onClick={() => updateCandidateStatus.mutate({
+                              analysisId: candidate.analysisId,
+                              candidateId: candidate.consultantId,
+                              newStatus: 'shortlisted'
+                            })}
+                            disabled={updateCandidateStatus.isPending}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Shortlist
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => updateCandidateStatus.mutate({
+                              analysisId: candidate.analysisId,
+                              candidateId: candidate.consultantId,
+                              newStatus: 'rejected'
+                            })}
+                            disabled={updateCandidateStatus.isPending}
+                          >
+                            <XCircle className="w-4 h-4 mr-2" />
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Rejected Candidates Tab */}
+          <TabsContent value="rejected" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <XCircle className="w-5 h-5 text-red-600" />
+                  <span>Rejected Candidates</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {rejectedCandidatesList.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <XCircle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>No rejected candidates</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {rejectedCandidatesList.map((candidate, index) => (
+                      <div key={index} className="border rounded-lg p-4 bg-red-50 dark:bg-red-900/20">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium text-red-800 dark:text-red-200">
+                            {candidate.consultantName}
+                          </h4>
+                          <Badge variant="secondary" className="bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200">
+                            {candidate.overallScore}% Match
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          <strong>Job:</strong> {candidate.jobTitle}
+                        </p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          <strong>Role:</strong> {candidate.role || 'Consultant'}
+                        </p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          <strong>Experience:</strong> {candidate.experienceYears}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {candidate.matchedSkills.map((skill: string, skillIndex: number) => (
+                            <Badge key={skillIndex} variant="outline" className="text-xs">
+                              {skill}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
         {/* Recent Activity Timeline */}
         {recentActivities.length > 0 && (

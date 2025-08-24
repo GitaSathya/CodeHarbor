@@ -1,3 +1,4 @@
+import React from "react";
 import { Trophy, AlertTriangle, Filter, Search, Clock, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +20,11 @@ export default function AnalysisResults() {
     queryKey: ['/api/documents'],
   });
 
+  const jobDescriptions = documents.filter(doc => 
+    doc.type === 'job_description' && doc.status === 'completed'
+  );
+  const consultantProfiles = documents.filter(doc => doc.type === 'consultant_profile');
+  
   const startAnalysisMutation = useMutation({
     mutationFn: async (jobDescriptionId: string) => {
       const response = await apiRequest('POST', '/api/analysis', { 
@@ -43,15 +49,36 @@ export default function AnalysisResults() {
     },
   });
 
-  const jobDescriptions = documents.filter(doc => 
-    doc.type === 'job_description' && doc.status === 'completed'
-  );
-  const consultantProfiles = documents.filter(doc => doc.type === 'consultant_profile');
-  const latestAnalysis = analyses[0];
-
-  const handleStartAnalysis = (jobDescriptionId: string) => {
+  const handleStartAnalysis = React.useCallback((jobDescriptionId: string) => {
     startAnalysisMutation.mutate(jobDescriptionId);
-  };
+  }, [startAnalysisMutation]);
+
+  // Auto-trigger analysis when both job descriptions and consultant profiles are available
+  const shouldAutoAnalyze = React.useMemo(() => 
+    jobDescriptions.length > 0 && consultantProfiles.length > 0 && analyses.length === 0,
+    [jobDescriptions.length, consultantProfiles.length, analyses.length]
+  );
+  
+  React.useEffect(() => {
+    console.log('Analysis trigger check:', {
+      shouldAutoAnalyze,
+      jobDescriptionsCount: jobDescriptions.length,
+      consultantProfilesCount: consultantProfiles.length,
+      analysesCount: analyses.length,
+      analysesLoading
+    });
+    
+    if (shouldAutoAnalyze && jobDescriptions.length > 0) {
+      // Auto-start analysis with the first job description
+      const firstJob = jobDescriptions[0];
+      if (firstJob && !analysesLoading) {
+        console.log('Auto-triggering analysis for:', firstJob.name, firstJob.id);
+        handleStartAnalysis(firstJob.id);
+      }
+    }
+  }, [shouldAutoAnalyze, jobDescriptions.length, consultantProfiles.length, analyses.length, analysesLoading, handleStartAnalysis]);
+
+  const latestAnalysis = analyses[0];
 
   if (analysesLoading) {
     return (
@@ -117,10 +144,31 @@ export default function AnalysisResults() {
                   <p className="text-gray-600 mb-4">
                     Upload job descriptions and consultant profiles, then start an analysis to see AI-powered matching results.
                   </p>
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-gray-500 mb-4">
                     <p>• Job Descriptions: {jobDescriptions.length}</p>
                     <p>• Consultant Profiles: {consultantProfiles.length}</p>
                   </div>
+                  
+                  {jobDescriptions.length > 0 && consultantProfiles.length > 0 && (
+                    <div className="text-center">
+                      <Button 
+                        onClick={() => {
+                          const firstJob = jobDescriptions[0];
+                          if (firstJob) {
+                            console.log('Manual analysis trigger for:', firstJob.name, firstJob.id);
+                            handleStartAnalysis(firstJob.id);
+                          }
+                        }}
+                        className="bg-primary hover:bg-primary/90"
+                      >
+                        <Play className="w-4 h-4 mr-2" />
+                        Start Analysis Now
+                      </Button>
+                      <p className="text-xs text-gray-500 mt-2">
+                        Click to manually trigger analysis
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (

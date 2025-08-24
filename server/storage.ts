@@ -87,6 +87,10 @@ class InMemoryStorage {
     );
   }
 
+  async getAnalysis(analysisId: string): Promise<Analysis | null> {
+    return this.analyses.get(analysisId) || null;
+  }
+
   async updateAnalysisStatus(id: string, status: string, results?: MatchResult[]): Promise<void> {
     const analysis = this.analyses.get(id);
     if (analysis) {

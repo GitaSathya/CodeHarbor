@@ -399,6 +399,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update candidate status (manual shortlist/reject)
+  app.patch('/api/analyses/:analysisId/candidates/:candidateId/status', async (req, res) => {
+    try {
+      const { analysisId, candidateId } = req.params;
+      const { status } = req.body;
+      
+      if (!['shortlisted', 'rejected'].includes(status)) {
+        return res.status(400).json({ message: 'Invalid status. Must be "shortlisted" or "rejected"' });
+      }
+      
+      const analysis = await storage.getAnalysis(analysisId);
+      if (!analysis) {
+        return res.status(404).json({ message: 'Analysis not found' });
+      }
+      
+      if (!analysis.results || !Array.isArray(analysis.results)) {
+        return res.status(400).json({ message: 'Analysis has no results' });
+      }
+      
+      // Find and update the candidate status
+      const candidateIndex = analysis.results.findIndex(
+        (result: any) => result.consultantId === candidateId
+      );
+      
+      if (candidateIndex === -1) {
+        return res.status(404).json({ message: 'Candidate not found in analysis' });
+      }
+      
+      // Update the candidate status
+      analysis.results[candidateIndex].status = status;
+      
+      // Update the analysis in storage
+      await storage.updateAnalysisStatus(analysisId, analysis.status, analysis.results);
+      
+      res.json({ 
+        message: `Candidate status updated to ${status}`,
+        candidateId,
+        newStatus: status
+      });
+      
+    } catch (error) {
+      console.error('Error updating candidate status:', error);
+      res.status(500).json({ message: 'Failed to update candidate status: ' + (error as Error).message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

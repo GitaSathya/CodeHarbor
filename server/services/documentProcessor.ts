@@ -128,10 +128,44 @@ export async function extractTextFromFile(buffer: Buffer, filename: string): Pro
     const fileExtension = filename.toLowerCase();
     
     if (fileExtension.endsWith('.pdf')) {
-      // Use pdf-parse for PDF files
-      const pdfParse = await import('pdf-parse');
-      const data = await pdfParse.default(buffer);
-      return data.text || `[PDF Content] - ${filename}\n\nNo text content found in PDF.`;
+      try {
+        // Use pdfjs-dist for PDF files (more reliable than pdf-parse)
+        const pdfjsLib = await import('pdfjs-dist');
+        
+        // Set worker path for PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        
+        // Load the PDF document
+        const loadingTask = pdfjsLib.getDocument({ data: buffer });
+        const pdf = await loadingTask.promise;
+        
+        let fullText = '';
+        
+        // Extract text from each page
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+          const page = await pdf.getPage(pageNum);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items
+            .map((item: any) => item.str)
+            .join(' ');
+          fullText += pageText + '\n';
+        }
+        
+        return fullText.trim() || `[PDF Content] - ${filename}\n\nNo text content found in PDF.`;
+      } catch (pdfError) {
+        console.error(`PDF parsing error for ${filename}:`, pdfError);
+        // Fallback: try to extract text using buffer conversion
+        try {
+          const text = buffer.toString('utf8');
+          // Check if the buffer contains readable text
+          if (text && text.length > 0 && !text.includes('\x00')) {
+            return `[PDF Fallback] - ${filename}\n\n${text.substring(0, 1000)}...`;
+          }
+        } catch (fallbackError) {
+          console.error(`Fallback text extraction failed for ${filename}:`, fallbackError);
+        }
+        return `[PDF Error] - ${filename}\n\nFailed to extract content from PDF. Please ensure the file is not corrupted.`;
+      }
     } else if (fileExtension.endsWith('.doc') || fileExtension.endsWith('.docx')) {
       // For Word documents, return a placeholder (would need additional libraries for full support)
       return `[Word Document] - ${filename}\n\nContent extracted from Word document. In production, use proper Word parsing library.`;

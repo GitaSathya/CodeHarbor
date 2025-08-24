@@ -17,18 +17,24 @@ interface MatchNotificationData {
 }
 
 export class EmailService {
-  private transporter: nodemailer.Transporter;
+  private transporter: nodemailer.Transporter | null;
 
   constructor() {
-    this.transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: false,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+    // Only create transporter if credentials are available
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      this.transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: false,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+      });
+    } else {
+      this.transporter = null;
+      console.log('Email service disabled: SMTP credentials not configured');
+    }
   }
 
   async sendProcessingCompleteEmail(userEmail: string, jobTitle: string, matchCount: number): Promise<void> {
@@ -90,7 +96,49 @@ export class EmailService {
     await this.sendEmail({ to: userEmail, subject, html });
   }
 
+  async sendReverseMatchCompleteEmail(
+    userEmail: string, 
+    matchData: {
+      candidateSummary: string;
+      matchCount: number;
+      topMatch: string;
+    }
+  ): Promise<void> {
+    const subject = `Reverse Match Complete - Job Recommendations Found`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #8b5cf6;">Reverse Match Complete</h2>
+        <p>We've analyzed your resume and found <strong>${matchData.matchCount}</strong> suitable job opportunities.</p>
+        
+        <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin-top: 0; color: #475569;">Top Recommendation</h3>
+          <p><strong>${matchData.topMatch}</strong></p>
+        </div>
+        
+        <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin-top: 0; color: #475569;">Candidate Summary</h3>
+          <p>${matchData.candidateSummary}</p>
+        </div>
+        
+        <p>View detailed results in your dashboard to explore all job opportunities.</p>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+          <p style="color: #6b7280; font-size: 14px;">
+            This is an automated message from your recruitment analysis system.
+          </p>
+        </div>
+      </div>
+    `;
+
+    await this.sendEmail({ to: userEmail, subject, html });
+  }
+
   private async sendEmail(options: EmailOptions): Promise<void> {
+    if (!this.transporter) {
+      console.log('Email service disabled: SMTP credentials not configured');
+      return;
+    }
+    
     try {
       await this.transporter.sendMail({
         from: process.env.SMTP_FROM || process.env.SMTP_USER,

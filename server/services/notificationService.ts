@@ -116,12 +116,18 @@ class NotificationService {
   }
 
   async notifyReverseMatchComplete(userEmail: string, result: any): Promise<void> {
-    // This would integrate with your email service
-    // For now, just log the result
-    console.log(`Reverse match completed for ${userEmail}:`, {
-      candidateSummary: result.candidateSummary,
-      matchCount: result.matches.length,
-      topMatch: result.matches[0]?.jobTitle || 'Unknown'
+    // Create a notification for reverse match completion
+    await this.createNotification({
+      userId: 'default',
+      type: 'processing_complete',
+      title: 'Reverse Match Complete',
+      message: `Resume analysis completed with ${result.matches.length} job recommendations found.`,
+      data: { 
+        type: 'reverse_match',
+        candidateSummary: result.candidateSummary,
+        matchCount: result.matches.length,
+        topMatch: result.matches[0]?.jobTitle || 'Unknown'
+      },
     });
   }
 }
