@@ -2,7 +2,7 @@
 
 CodeHarbor is an intelligent recruitment platform that leverages Google's Gemini AI to automatically analyze job descriptions and candidate resumes, providing HR professionals with data-driven insights for better hiring decisions.
 
-## 🚀 Features
+## Features
 
 ### Core Functionality
 - **AI-Powered Document Analysis**: Upload job descriptions and candidate resumes for intelligent matching
@@ -24,7 +24,7 @@ CodeHarbor is an intelligent recruitment platform that leverages Google's Gemini
 - **Comprehensive Analytics**: Detailed insights into matching performance and success rates
 - **Mobile Responsive**: Works seamlessly across all devices
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 ### Frontend
 - **React 18** with TypeScript
@@ -44,7 +44,7 @@ CodeHarbor is an intelligent recruitment platform that leverages Google's Gemini
 - **PostgreSQL** for data persistence
 - **Drizzle Kit** for migrations
 
-## 📋 Prerequisites
+## Prerequisites
 
 Before running CodeHarbor, ensure you have:
 
@@ -52,7 +52,7 @@ Before running CodeHarbor, ensure you have:
 2. **PostgreSQL** database
 3. **Google Gemini API Key** from [Google AI Studio](https://makersuite.google.com/app/apikey)
 
-## 🚀 Installation
+## Installation
 
 ### 1. Clone the Repository
 ```bash
@@ -100,7 +100,7 @@ npm run dev:client  # Frontend
 npm run dev:server  # Backend
 ```
 
-## 🔧 Configuration
+## Configuration
 
 ### Gemini API Setup
 
@@ -119,7 +119,7 @@ Configure email settings in the Settings → Notifications tab:
 - Configure similarity thresholds for alerts
 - Customize notification preferences
 
-## 📖 Usage Guide
+## Usage Guide
 
 ### 1. Upload Job Description
 - Navigate to Documents page
@@ -150,7 +150,7 @@ Configure email settings in the Settings → Notifications tab:
 - View detailed analysis of skills, experience, and context fit
 - Receive email notifications with comprehensive results
 
-## 🔍 API Endpoints
+## API Endpoints
 
 ### Documents
 - `GET /api/documents` - Get all documents
@@ -170,7 +170,7 @@ Configure email settings in the Settings → Notifications tab:
 - `PUT /api/notifications/:id/read` - Mark as read
 - `DELETE /api/notifications/:id` - Delete notification
 
-## 📊 Data Models
+## Data Models
 
 ### Document
 ```typescript
@@ -214,7 +214,7 @@ interface MatchResult {
 }
 ```
 
-## 🎯 AI Analysis Process
+## AI Analysis Process
 
 ### 1. Document Processing
 - Extract text content from uploaded files
@@ -235,14 +235,7 @@ interface MatchResult {
 - Create comprehensive reports
 - Send email notifications
 
-## 🔒 Security & Privacy
-
-- **Local Storage**: API keys stored securely in browser localStorage
-- **File Validation**: Strict file type and size restrictions
-- **Input Sanitization**: All user inputs are validated and sanitized
-- **HTTPS Ready**: Configured for secure production deployment
-
-## 🚀 Deployment
+## Deployment
 
 ### Production Build
 ```bash
@@ -262,7 +255,7 @@ Ensure all required environment variables are set in production:
 npm run db:push
 ```
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -270,18 +263,18 @@ npm run db:push
 4. Add tests if applicable
 5. Submit a pull request
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License.
 
-## 🆘 Support
+## Support
 
 For support and questions:
 - Check the documentation
 - Review existing issues
 - Create a new issue with detailed information
 
-## 🔮 Future Enhancements
+## Future Enhancements
 
 - **Advanced AI Models**: Support for additional AI providers
 - **Interview Scheduling**: Integrated calendar and scheduling
@@ -291,5 +284,3 @@ For support and questions:
 - **API Integrations**: Connect with popular HR platforms
 
 ---
-
-**Built with ❤️ using modern web technologies and AI**
