@@ -79,7 +79,7 @@ export async function processJobAnalysis(jobDescriptionId: string, userEmail?: s
             jobTitle,
             matchCount: matches.length,
             highSimilarityMatches: highSimilarityMatches.map(match => ({
-              name: match.profileName,
+              name: match.consultantName,
               score: match.overallScore
             }))
           });
@@ -119,25 +119,40 @@ export async function processJobAnalysis(jobDescriptionId: string, userEmail?: s
   }
 }
 
-export function extractTextFromFile(buffer: Buffer, filename: string): string {
-  // For MVP, just convert buffer to string
-  // In production, you'd use proper PDF/Word parsing libraries
-  const content = buffer.toString('utf8');
-  
-  // Basic cleanup for common file types
-  if (filename.toLowerCase().endsWith('.pdf')) {
-    // PDF files might have binary content, so we'll just return a placeholder
-    return `[PDF Content] - ${filename}\n\nContent extracted from PDF file. In production, use proper PDF parsing library.`;
+export async function extractTextFromFile(buffer: Buffer, filename: string): Promise<string> {
+  try {
+    const fileExtension = filename.toLowerCase();
+    
+    if (fileExtension.endsWith('.pdf')) {
+      // Use pdf-parse for PDF files
+      const pdfParse = await import('pdf-parse');
+      const data = await pdfParse.default(buffer);
+      return data.text || `[PDF Content] - ${filename}\n\nNo text content found in PDF.`;
+    } else if (fileExtension.endsWith('.doc') || fileExtension.endsWith('.docx')) {
+      // For Word documents, return a placeholder (would need additional libraries for full support)
+      return `[Word Document] - ${filename}\n\nContent extracted from Word document. In production, use proper Word parsing library.`;
+    } else if (fileExtension.endsWith('.txt')) {
+      // Text files can be converted directly
+      return buffer.toString('utf8');
+    } else {
+      // Try to convert as text, but warn about potential issues
+      try {
+        return buffer.toString('utf8');
+      } catch (error) {
+        return `[Binary File] - ${filename}\n\nUnable to extract text content from this file type.`;
+      }
+    }
+  } catch (error) {
+    console.error(`Error extracting text from ${filename}:`, error);
+    return `[Error] - ${filename}\n\nFailed to extract content: ${error instanceof Error ? error.message : 'Unknown error'}`;
   }
-  
-  return content;
 }
 
 export async function extractZipFiles(buffer: Buffer): Promise<Array<{ name: string; content: string }>> {
   return new Promise((resolve, reject) => {
     const files: Array<{ name: string; content: string }> = [];
     
-    yauzl.fromBuffer(buffer, { lazyEntries: true }, (err, zipfile) => {
+    yauzl.fromBuffer(buffer, { lazyEntries: true }, (err: any, zipfile: any) => {
       if (err) {
         reject(new Error(`Failed to read ZIP file: ${err.message}`));
         return;
@@ -150,7 +165,7 @@ export async function extractZipFiles(buffer: Buffer): Promise<Array<{ name: str
 
       zipfile.readEntry();
 
-      zipfile.on('entry', (entry) => {
+      zipfile.on('entry', (entry: any) => {
         // Skip directories
         if (/\/$/.test(entry.fileName)) {
           zipfile.readEntry();
@@ -168,7 +183,7 @@ export async function extractZipFiles(buffer: Buffer): Promise<Array<{ name: str
           return;
         }
 
-        zipfile.openReadStream(entry, (err, readStream) => {
+        zipfile.openReadStream(entry, (err: any, readStream: any) => {
           if (err) {
             reject(new Error(`Failed to read entry ${entry.fileName}: ${err.message}`));
             return;
@@ -180,23 +195,31 @@ export async function extractZipFiles(buffer: Buffer): Promise<Array<{ name: str
           }
 
           const chunks: Buffer[] = [];
-          readStream.on('data', (chunk) => {
+          readStream.on('data', (chunk: any) => {
             chunks.push(chunk);
           });
 
-          readStream.on('end', () => {
-            const buffer = Buffer.concat(chunks);
-            const content = extractTextFromFile(buffer, entry.fileName);
-            
-            files.push({
-              name: entry.fileName,
-              content: content
-            });
-
+          readStream.on('end', async () => {
+            try {
+              const buffer = Buffer.concat(chunks);
+              const content = await extractTextFromFile(buffer, entry.fileName);
+              
+              files.push({
+                name: entry.fileName,
+                content: content
+              });
+            } catch (error) {
+              console.error(`Error processing ${entry.fileName}:`, error);
+              // Add error file to results
+              files.push({
+                name: entry.fileName,
+                content: `[Error] Failed to extract content: ${error instanceof Error ? error.message : 'Unknown error'}`
+              });
+            }
             zipfile.readEntry();
           });
 
-          readStream.on('error', (err) => {
+          readStream.on('error', (err: any) => {
             reject(new Error(`Error reading ${entry.fileName}: ${err.message}`));
           });
         });
@@ -206,7 +229,7 @@ export async function extractZipFiles(buffer: Buffer): Promise<Array<{ name: str
         resolve(files);
       });
 
-      zipfile.on('error', (err) => {
+      zipfile.on('error', (err: any) => {
         reject(new Error(`ZIP processing error: ${err.message}`));
       });
     });

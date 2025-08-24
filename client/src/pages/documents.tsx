@@ -147,7 +147,7 @@ export default function Documents() {
   const jobsTableData = jobDescriptions.map((job) => {
     const relatedAnalysis = analyses.find(analysis => analysis.jobDescriptionId === job.id);
     const jobApplicants = applicantProfiles.filter(profile => profile.jobDescriptionId === job.id);
-    const shortlistedCount = relatedAnalysis?.results?.length || 0;
+    const shortlistedCount = relatedAnalysis?.results && Array.isArray(relatedAnalysis.results) ? relatedAnalysis.results.length : 0;
 
     return {
       id: job.id,
@@ -280,7 +280,7 @@ export default function Documents() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-center text-sm text-gray-500">
-                          {new Date(job.uploadDate).toLocaleDateString()}
+                          {job.uploadDate ? new Date(job.uploadDate).toLocaleDateString() : 'Unknown'}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -363,7 +363,7 @@ export default function Documents() {
                       )}
                       <div className="flex justify-between">
                         <span>Date:</span>
-                        <span>{new Date(doc.createdAt || doc.uploadedAt).toLocaleDateString()}</span>
+                        <span>{(doc.createdAt || doc.uploadedAt) ? new Date(doc.createdAt || doc.uploadedAt!).toLocaleDateString() : 'Unknown'}</span>
                       </div>
                     </div>
 

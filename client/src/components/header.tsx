@@ -13,7 +13,7 @@ import { useState, useEffect } from "react";
 import NotificationBell from "./notification-bell";
 
 export default function Header() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const [location, navigate] = useLocation();
   const [user, setUser] = useState<{email: string, isAuthenticated: boolean} | null>(null);
 
@@ -76,6 +76,16 @@ export default function Header() {
               Analytics
             </a>
             <a
+              href="/reverse-match"
+              className={`pb-2 font-medium transition-colors ${
+                location === "/reverse-match"
+                  ? "text-primary border-b-2 border-primary"
+                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+              }`}
+            >
+              Resume Matcher
+            </a>
+            <a
               href="/settings"
               className={`pb-2 font-medium transition-colors ${
                 location === "/settings"
@@ -88,7 +98,7 @@ export default function Header() {
           </nav>
           <div className="flex items-center space-x-3">
             <button
-              onClick={toggleTheme}
+                              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="Toggle theme"
             >

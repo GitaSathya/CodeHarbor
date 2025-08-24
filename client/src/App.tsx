@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/contexts/theme-context";
 import Dashboard from "@/pages/dashboard";
 import Documents from "@/pages/documents";
 import Analytics from "@/pages/analytics";
+import ReverseMatch from "@/pages/reverse-match";
 import Settings from "@/pages/settings";
 import Login from "@/pages/login";
 import NotFound from "@/pages/not-found";
@@ -58,9 +59,10 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/documents" component={Documents} />
-      <Route path="/analytics" element={<Analytics />} />
-      <Route path="/settings" element={<Settings />} />
-      <Route path="/login" element={<Login />} />
+      <Route path="/analytics" component={Analytics} />
+      <Route path="/reverse-match" component={ReverseMatch} />
+      <Route path="/settings" component={Settings} />
+      <Route path="/login" component={Login} />
       <Route component={NotFound} />
     </Switch>
   );

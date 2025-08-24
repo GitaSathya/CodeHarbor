@@ -132,7 +132,7 @@ export default function AnalysisResults() {
                         <h4 className="font-medium text-blue-800">Latest Analysis: {latestAnalysis.jobTitle}</h4>
                         <p className="text-sm text-blue-600">
                           Status: {latestAnalysis.status} • 
-                          Matches: {Array.isArray(latestAnalysis.matches) ? latestAnalysis.matches.length : 0} found
+                          Matches: {Array.isArray(latestAnalysis.results) ? latestAnalysis.results.length : 0} found
                         </p>
                       </div>
                       <div className="text-right text-sm text-blue-600">
@@ -140,26 +140,26 @@ export default function AnalysisResults() {
                       </div>
                     </div>
 
-                    {Array.isArray(latestAnalysis.matches) && latestAnalysis.matches.length > 0 ? (
+                    {Array.isArray(latestAnalysis.results) && latestAnalysis.results.length > 0 ? (
                       <div className="space-y-3">
                         <h4 className="font-medium text-gray-900">Top Matches:</h4>
-                        {latestAnalysis.matches.slice(0, 3).map((match, index) => (
+                        {latestAnalysis.results.slice(0, 3).map((match, index) => (
                           <MatchCard
-                            key={match.profileId}
+                            key={match.consultantId}
                             rank={index + 1}
-                            name={match.profileName}
-                            role={match.role}
+                            name={match.consultantName}
+                            role={match.role || "Consultant"}
                             overallScore={match.overallScore}
                             skillsMatch={match.skillsMatch}
                             experienceMatch={match.experienceMatch}
                             contextMatch={match.contextMatch}
                             matchedSkills={match.matchedSkills}
-                            experience={match.experience}
+                            experience={match.experienceYears}
                           />
                         ))}
-                        {latestAnalysis.matches.length > 3 && (
+                        {latestAnalysis.results.length > 3 && (
                           <p className="text-sm text-gray-500 text-center py-2">
-                            +{latestAnalysis.matches.length - 3} more matches available
+                            +{latestAnalysis.results.length - 3} more matches available
                           </p>
                         )}
                       </div>

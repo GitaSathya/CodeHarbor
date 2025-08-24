@@ -51,6 +51,7 @@ export interface DocumentStats {
 export interface MatchResult {
   consultantId: string;
   consultantName: string;
+  role?: string;
   overallScore: number;
   skillsMatch: number;
   experienceMatch: number;

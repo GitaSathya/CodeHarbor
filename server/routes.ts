@@ -100,7 +100,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else {
         // Handle single file upload
-        const content = extractTextFromFile(req.file.buffer, req.file.originalname);
+        const content = await extractTextFromFile(req.file.buffer, req.file.originalname);
         
         const documentData = insertDocumentSchema.parse({
           name: req.file.originalname,
@@ -224,6 +224,178 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to delete notification" });
+    }
+  });
+
+  // Test Gemini API connection
+  app.post("/api/test-gemini", async (req, res) => {
+    try {
+      const { apiKey } = req.body;
+      
+      if (!apiKey) {
+        return res.status(400).json({ message: "API key is required" });
+      }
+
+      // Test the API key by making a simple request to Gemini
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey });
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [{
+          role: "user",
+          parts: [{ text: "Hello, this is a test message to verify API connectivity." }]
+        }],
+        config: {
+          temperature: 0.1,
+          maxOutputTokens: 50,
+        }
+      });
+
+      if (response.text) {
+        res.json({ 
+          success: true, 
+          message: "API connection successful",
+          response: response.text 
+        });
+      } else {
+        throw new Error("Empty response from Gemini API");
+      }
+    } catch (error) {
+      console.error('Gemini API test error:', error);
+      res.status(500).json({ 
+        message: "Failed to connect to Gemini API", 
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Reverse matching - analyze resume and suggest best job matches
+  app.post("/api/reverse-match", async (req, res) => {
+    try {
+      const { resumeContent, userEmail } = req.body;
+      
+      if (!resumeContent) {
+        return res.status(400).json({ message: "Resume content is required" });
+      }
+
+      // Get all available job descriptions
+      const allJobs = await storage.getAllDocuments();
+      const jobDescriptions = allJobs.filter(doc => doc.type === 'job_description');
+      
+      if (jobDescriptions.length === 0) {
+        return res.status(404).json({ message: "No job descriptions found. Please upload some job descriptions first." });
+      }
+
+      // Get Gemini API key from environment or request
+      const geminiApiKey = process.env.GEMINI_API_KEY;
+      if (!geminiApiKey) {
+        return res.status(500).json({ message: "Gemini API key not configured on server" });
+      }
+
+      // Analyze resume against all job descriptions
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+      
+      const prompt = `
+      You are an expert AI recruitment assistant. Analyze the candidate's resume and match it against available job descriptions to find the best fits.
+
+      Candidate Resume:
+      ${resumeContent}
+
+      Available Job Descriptions:
+      ${jobDescriptions.map((job, index) => `
+      Job ${index + 1} (ID: ${job.id}):
+      ${job.content}
+      `).join('\n')}
+
+      For each job description, analyze:
+      1. Skills Match (0-100): How well the candidate's skills match the job requirements
+      2. Experience Match (0-100): How well the candidate's experience level fits the role
+      3. Context Match (0-100): How well the candidate's background fits the company/industry
+      4. Overall Score (0-100): Weighted average of the above scores
+      5. Key Matched Skills: List of skills that align well
+      6. Potential Concerns: Any areas where the candidate might not be a good fit
+
+      Return a JSON object with this structure:
+      {
+        "candidateSummary": "Brief summary of the candidate's profile",
+        "matches": [
+          {
+            "jobId": "string",
+            "jobTitle": "extracted job title",
+            "overallScore": number,
+            "skillsMatch": number,
+            "experienceMatch": number,
+            "contextMatch": number,
+            "keyMatchedSkills": ["skill1", "skill2"],
+            "potentialConcerns": ["concern1", "concern2"],
+            "recommendation": "string explaining why this job is a good fit"
+          }
+        ]
+      }
+
+      Only include jobs with an overall score of 50 or higher. Sort by overall score descending.
+      `;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-pro",
+        config: {
+          systemInstruction: "You are an expert AI recruitment assistant that analyzes resume-to-job matching. Always respond with valid JSON.",
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              candidateSummary: { type: "string" },
+              matches: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    jobId: { type: "string" },
+                    jobTitle: { type: "string" },
+                    overallScore: { type: "number" },
+                    skillsMatch: { type: "number" },
+                    experienceMatch: { type: "number" },
+                    contextMatch: { type: "number" },
+                    keyMatchedSkills: { type: "array", items: { type: "string" } },
+                    potentialConcerns: { type: "array", items: { type: "string" } },
+                    recommendation: { type: "string" }
+                  },
+                  required: ["jobId", "jobTitle", "overallScore", "skillsMatch", "experienceMatch", "contextMatch", "keyMatchedSkills", "potentialConcerns", "recommendation"]
+                }
+              }
+            },
+            required: ["candidateSummary", "matches"]
+          },
+          temperature: 0.3,
+        },
+        contents: prompt,
+      });
+
+      const rawJson = response.text;
+      if (rawJson) {
+        const result = JSON.parse(rawJson);
+        
+        // Send email notification if email provided
+        if (userEmail) {
+          try {
+            await notificationService.notifyReverseMatchComplete(userEmail, result);
+          } catch (emailError) {
+            console.error('Failed to send reverse match email:', emailError);
+          }
+        }
+
+        res.json(result);
+      } else {
+        throw new Error("Empty response from Gemini API");
+      }
+    } catch (error) {
+      console.error('Reverse match error:', error);
+      res.status(500).json({ 
+        message: "Failed to analyze resume", 
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 

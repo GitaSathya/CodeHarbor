@@ -18,11 +18,11 @@ export default function Analytics() {
   // Calculate real metrics from actual data
   const completedAnalyses = analyses.filter(analysis => analysis.status === 'completed');
   const totalMatches = completedAnalyses.reduce((sum, analysis) => 
-    sum + (Array.isArray(analysis.matches) ? analysis.matches.length : 0), 0
+    sum + (Array.isArray(analysis.results) ? analysis.results.length : 0), 0
   );
   
   const allMatches = completedAnalyses.flatMap(analysis => 
-    Array.isArray(analysis.matches) ? analysis.matches : []
+    Array.isArray(analysis.results) ? analysis.results : []
   );
   
   const excellentMatches = allMatches.filter(match => match.overallScore >= 90).length;
@@ -38,11 +38,15 @@ export default function Analytics() {
 
   // Recent activity from actual analyses
   const recentActivities = analyses
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    })
     .slice(0, 5)
     .map(analysis => {
-      const timeAgo = getTimeAgo(new Date(analysis.createdAt));
-      const matchCount = Array.isArray(analysis.matches) ? analysis.matches.length : 0;
+      const timeAgo = analysis.createdAt ? getTimeAgo(new Date(analysis.createdAt)) : 'Unknown';
+      const matchCount = Array.isArray(analysis.results) ? analysis.results.length : 0;
       
       if (analysis.status === 'completed' && matchCount > 0) {
         return {
@@ -149,7 +153,7 @@ export default function Analytics() {
           />
           <StatsCard
             title="Success Rate"
-            value={`${successRate}%`}
+            value={successRate}
             icon={TrendingUp}
             color="text-blue-600"
           />
