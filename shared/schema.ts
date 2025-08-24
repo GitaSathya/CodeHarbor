@@ -59,4 +59,5 @@ export interface MatchResult {
   matchedSkills: string[];
   experienceYears: string;
   summary: string;
+  status: 'shortlisted' | 'rejected' | 'pending'; // New status field
 }

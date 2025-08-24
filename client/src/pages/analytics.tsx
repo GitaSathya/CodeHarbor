@@ -25,6 +25,12 @@ export default function Analytics() {
     Array.isArray(analysis.results) ? analysis.results : []
   );
   
+  // Categorize matches by status
+  const shortlistedCandidates = allMatches.filter(match => match.status === 'shortlisted').length;
+  const rejectedCandidates = allMatches.filter(match => match.status === 'rejected').length;
+  const pendingCandidates = allMatches.filter(match => match.status === 'pending').length;
+  
+  // Legacy score-based categorization
   const excellentMatches = allMatches.filter(match => match.overallScore >= 90).length;
   const goodMatches = allMatches.filter(match => match.overallScore >= 70 && match.overallScore < 90).length;
   const fairMatches = allMatches.filter(match => match.overallScore >= 50 && match.overallScore < 70).length;
@@ -152,22 +158,22 @@ export default function Analytics() {
             color="text-green-600"
           />
           <StatsCard
-            title="Success Rate"
-            value={successRate}
-            icon={TrendingUp}
-            color="text-blue-600"
+            title="Shortlisted"
+            value={shortlistedCandidates}
+            icon={Target}
+            color="text-green-600"
           />
           <StatsCard
-            title="Completed Analyses"
-            value={completedAnalyses.length}
+            title="Rejected"
+            value={rejectedCandidates}
+            icon={FileText}
+            color="text-red-600"
+          />
+          <StatsCard
+            title="Pending Review"
+            value={pendingCandidates}
             icon={Clock}
             color="text-orange-600"
-          />
-          <StatsCard
-            title="Active Consultants"
-            value={consultantProfiles}
-            icon={Users}
-            color="text-purple-600"
           />
         </div>
 
@@ -177,14 +183,14 @@ export default function Analytics() {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <BarChart3 className="w-5 h-5 text-primary" />
-                <span>Matching Performance</span>
+                <span>Candidate Status Overview</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Excellent Matches (90%+)</span>
-                  <span className="text-sm text-green-600">{excellentMatches}</span>
+                  <span className="text-sm font-medium">Shortlisted Candidates</span>
+                  <span className="text-sm text-green-600 font-bold">{shortlistedCandidates}</span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div 
@@ -194,8 +200,8 @@ export default function Analytics() {
                 </div>
                 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Good Matches (70-89%)</span>
-                  <span className="text-sm text-blue-600">{goodMatches}</span>
+                  <span className="text-sm font-medium">Pending Review</span>
+                  <span className="text-sm text-orange-600 font-bold">{pendingCandidates}</span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div 
@@ -205,8 +211,8 @@ export default function Analytics() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Fair Matches (50-69%)</span>
-                  <span className="text-sm text-orange-600">{fairMatches}</span>
+                  <span className="text-sm font-medium">Rejected Candidates</span>
+                  <span className="text-sm text-red-600 font-bold">{rejectedCandidates}</span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div 
@@ -215,16 +221,7 @@ export default function Analytics() {
                   ></div>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Poor Matches (&lt;50%)</span>
-                  <span className="text-sm text-red-600">{poorMatches}</span>
-                </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                  <div 
-                    className="bg-red-600 h-2 rounded-full" 
-                    style={{width: totalMatches > 0 ? `${(poorMatches / totalMatches) * 100}%` : '0%'}}
-                  ></div>
-                </div>
+
               </div>
             </CardContent>
           </Card>

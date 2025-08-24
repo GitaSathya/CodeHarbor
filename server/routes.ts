@@ -1,7 +1,7 @@
 
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage } from "./storageFactory";
 import { insertDocumentSchema, insertAnalysisSchema } from "@shared/schema";
 import { processJobAnalysis, extractTextFromFile, extractZipFiles } from "./services/documentProcessor";
 import { notificationService } from "./services/notificationService";

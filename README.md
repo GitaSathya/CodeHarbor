@@ -49,8 +49,11 @@ CodeHarbor is an intelligent recruitment platform that leverages Google's Gemini
 Before running CodeHarbor, ensure you have:
 
 1. **Node.js** (v18 or higher)
-2. **PostgreSQL** database
-3. **Google Gemini API Key** from [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. **Google Gemini API Key** from [Google AI Studio](https://makersuite.google.com/app/apikey)
+3. **Storage Option** (choose one):
+   - **Memory Storage** (default): No setup required, data lost on restart
+   - **File Storage**: No setup required, data persists in JSON files
+   - **PostgreSQL**: For production use with persistent database
 
 ## Installation
 
@@ -66,28 +69,36 @@ npm install
 ```
 
 ### 3. Environment Setup
-Create a `.env` file in the root directory:
+Create a `.env` file in the root directory (copy from `env.example`):
 ```env
-# Database
-DATABASE_URL="postgresql://username:password@localhost:5432/codeharbor"
+# Storage Configuration (choose one)
+STORAGE_TYPE=memory          # Options: memory, file, postgres
+# STORAGE_TYPE=file          # Uncomment for file-based storage
+# STORAGE_TYPE=postgres      # Uncomment for PostgreSQL
 
 # Gemini AI
 GEMINI_API_KEY="your-gemini-api-key-here"
 
+# Database (only needed if STORAGE_TYPE=postgres)
+# DATABASE_URL="postgresql://username:password@localhost:5432/codeharbor"
+
 # Email (Optional)
-SMTP_HOST="smtp.gmail.com"
-SMTP_PORT=587
-SMTP_USER="your-email@gmail.com"
-SMTP_PASS="your-app-password"
+# SMTP_HOST="smtp.gmail.com"
+# SMTP_PORT=587
+# SMTP_USER="your-email@gmail.com"
+# SMTP_PASS="your-app-password"
 ```
 
-### 4. Database Setup
+### 4. Storage Setup
 ```bash
-# Push database schema
-npm run db:push
+# For Memory Storage (default) - No setup required
+# Data will be lost when server restarts
 
-# Or run migrations
-npm run db:migrate
+# For File Storage - No setup required
+# Data will be saved to ./data/ directory
+
+# For PostgreSQL (production only)
+npm run db:push
 ```
 
 ### 5. Start Development Server

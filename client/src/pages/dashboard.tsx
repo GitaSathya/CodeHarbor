@@ -1,5 +1,5 @@
 
-import { FileText, Briefcase, Users, Clock, Plus, History } from "lucide-react";
+import { FileText, Briefcase, Users, Clock, History } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { DocumentStats, Document } from "@shared/schema";
 import Header from "@/components/header";
@@ -143,13 +143,7 @@ export default function Dashboard() {
         <DocumentTable />
       </main>
 
-      {/* Floating Action Button */}
-      <Button 
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-material-3 hover:shadow-lg transition-all duration-200"
-        size="icon"
-      >
-        <Plus className="w-6 h-6" />
-      </Button>
+
     </div>
   );
 }

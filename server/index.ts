@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { storage } from "./storage";
+import { storage } from "./storageFactory";
 
 const app = express();
 app.use(express.json());
@@ -37,20 +37,20 @@ app.use((req, res, next) => {
   next();
 });
 
-// Initialize database
-async function initializeDatabase() {
+// Initialize storage
+async function initializeStorage() {
   try {
-    console.log('[database] Initializing database...');
-    // Test database connection
+    console.log('[storage] Initializing in-memory storage...');
+    // Test storage connection
     await storage.getStats();
-    console.log('[database] Database initialized successfully');
+    console.log('[storage] Storage initialized successfully with sample data');
   } catch (error) {
-    console.log('[database] Database initialization completed');
+    console.log('[storage] Storage initialization completed');
   }
 }
 
 (async () => {
-  await initializeDatabase();
+  await initializeStorage();
 
   const server = await registerRoutes(app);
 

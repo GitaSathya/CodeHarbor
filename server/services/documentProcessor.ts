@@ -56,8 +56,12 @@ export async function processJobAnalysis(jobDescriptionId: string, userEmail?: s
       return;
     }
 
+    // Get user's threshold settings (default to 80% for shortlist, 50% for rejection)
+    const shortlistThreshold = 80; // This could come from user settings
+    const rejectionThreshold = 50; // This could come from user settings
+    
     // Analyze similarity using Gemini
-    const matches = await analyzeDocumentSimilarity(jobDoc.content, consultantProfiles);
+    const matches = await analyzeDocumentSimilarity(jobDoc.content, consultantProfiles, shortlistThreshold, rejectionThreshold);
 
     // Update analysis with results
     await storage.updateAnalysisStatus(analysis.id, 'completed', matches);

@@ -6,7 +6,9 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 export async function analyzeDocumentSimilarity(
   jobDescription: string,
-  consultantProfiles: Array<{ id: string; name: string; content: string }>
+  consultantProfiles: Array<{ id: string; name: string; content: string }>,
+  shortlistThreshold: number = 80,
+  rejectionThreshold: number = 50
 ): Promise<MatchResult[]> {
   try {
     const prompt = `
@@ -47,7 +49,7 @@ export async function analyzeDocumentSimilarity(
       ]
     }
 
-    Only include profiles with an overall score of 60 or higher. Sort by overall score descending.
+    Include ALL profiles and sort by overall score descending. We will categorize them based on scores later.
     `;
 
     const response = await ai.models.generateContent({
@@ -87,7 +89,28 @@ export async function analyzeDocumentSimilarity(
     const rawJson = response.text;
     if (rawJson) {
       const result = JSON.parse(rawJson);
-      return result.matches || [];
+      const matches = result.matches || [];
+      
+      // Add status based on thresholds
+      const processedMatches = matches.map((match: any) => {
+        let status: 'shortlisted' | 'rejected' | 'pending' = 'pending';
+        
+        if (match.overallScore >= shortlistThreshold) {
+          status = 'shortlisted';
+        } else if (match.overallScore < rejectionThreshold) {
+          status = 'rejected';
+        }
+        
+        return {
+          ...match,
+          consultantId: match.profileId,
+          consultantName: match.profileName,
+          experienceYears: match.experience,
+          status,
+        };
+      });
+      
+      return processedMatches;
     } else {
       throw new Error("Empty response from model");
     }

@@ -1,10 +1,73 @@
 import { Document, Analysis, InsertDocument, InsertAnalysis, DocumentStats, MatchResult } from "@shared/schema";
+import { promises as fs } from 'fs';
+import path from 'path';
 
-// Simple in-memory storage for development
-class InMemoryStorage {
+// File-based storage for development with persistence
+class FileStorage {
+  private dataDir = path.join(process.cwd(), 'data');
+  private documentsFile = path.join(this.dataDir, 'documents.json');
+  private analysesFile = path.join(this.dataDir, 'analyses.json');
   private documents: Map<string, Document> = new Map();
   private analyses: Map<string, Analysis> = new Map();
   private nextId = 1;
+
+  constructor() {
+    this.ensureDataDir();
+    this.loadData();
+  }
+
+  private async ensureDataDir() {
+    try {
+      await fs.mkdir(this.dataDir, { recursive: true });
+    } catch (error) {
+      console.error('Failed to create data directory:', error);
+    }
+  }
+
+  private async loadData() {
+    try {
+      // Load documents
+      try {
+        const documentsData = await fs.readFile(this.documentsFile, 'utf8');
+        const documentsArray = JSON.parse(documentsData);
+        this.documents = new Map(documentsArray.map((doc: any) => [doc.id, doc]));
+      } catch (error) {
+        console.log('No existing documents found, starting fresh');
+      }
+
+      // Load analyses
+      try {
+        const analysesData = await fs.readFile(this.analysesFile, 'utf8');
+        const analysesArray = JSON.parse(analysesData);
+        this.analyses = new Map(analysesArray.map((analysis: any) => [analysis.id, analysis]));
+      } catch (error) {
+        console.log('No existing analyses found, starting fresh');
+      }
+
+      // Find the highest ID to continue from
+      const allIds = Array.from(this.documents.keys()).concat(Array.from(this.analyses.keys()));
+      if (allIds.length > 0) {
+        const maxId = Math.max(...allIds.map(id => parseInt(id.split('_')[1])));
+        this.nextId = maxId + 1;
+      }
+    } catch (error) {
+      console.error('Failed to load data:', error);
+    }
+  }
+
+  private async saveData() {
+    try {
+      // Save documents
+      const documentsArray = Array.from(this.documents.values());
+      await fs.writeFile(this.documentsFile, JSON.stringify(documentsArray, null, 2));
+
+      // Save analyses
+      const analysesArray = Array.from(this.analyses.values());
+      await fs.writeFile(this.analysesFile, JSON.stringify(analysesArray, null, 2));
+    } catch (error) {
+      console.error('Failed to save data:', error);
+    }
+  }
 
   private generateId(): string {
     return `id_${this.nextId++}_${Date.now()}`;
@@ -23,6 +86,7 @@ class InMemoryStorage {
     };
 
     this.documents.set(document.id, document);
+    await this.saveData();
     return document;
   }
 
@@ -31,20 +95,7 @@ class InMemoryStorage {
   }
 
   async getAllDocuments(): Promise<Document[]> {
-    const now = new Date();
-    const documents = Array.from(this.documents.values());
-    
-    // Filter out expired job descriptions (older than 90 days)
-    const activeDocuments = documents.filter(doc => {
-      if (doc.type === 'job_description') {
-        const uploadDate = doc.uploadedAt ? new Date(doc.uploadedAt) : new Date();
-        const daysSinceUpload = (now.getTime() - uploadDate.getTime()) / (1000 * 60 * 60 * 24);
-        return daysSinceUpload <= 90; // Keep jobs for 90 days
-      }
-      return true; // Keep all other document types
-    });
-    
-    return activeDocuments.sort((a, b) => 
+    return Array.from(this.documents.values()).sort((a, b) => 
       (b.uploadedAt ? new Date(b.uploadedAt).getTime() : 0) - (a.uploadedAt ? new Date(a.uploadedAt).getTime() : 0)
     );
   }
@@ -60,11 +111,16 @@ class InMemoryStorage {
     if (document) {
       document.status = status;
       this.documents.set(id, document);
+      await this.saveData();
     }
   }
 
   async deleteDocument(id: string): Promise<boolean> {
-    return this.documents.delete(id);
+    const deleted = this.documents.delete(id);
+    if (deleted) {
+      await this.saveData();
+    }
+    return deleted;
   }
 
   async createAnalysis(data: InsertAnalysis): Promise<Analysis> {
@@ -78,6 +134,7 @@ class InMemoryStorage {
     };
 
     this.analyses.set(analysis.id, analysis);
+    await this.saveData();
     return analysis;
   }
 
@@ -95,27 +152,15 @@ class InMemoryStorage {
         analysis.results = results;
       }
       this.analyses.set(id, analysis);
+      await this.saveData();
     }
   }
 
   async getStats(): Promise<DocumentStats> {
-    const now = new Date();
-    const documents = Array.from(this.documents.values());
-    
-    // Filter active documents (excluding expired job descriptions)
-    const activeDocuments = documents.filter(doc => {
-      if (doc.type === 'job_description') {
-        const uploadDate = doc.uploadedAt ? new Date(doc.uploadedAt) : new Date();
-        const daysSinceUpload = (now.getTime() - uploadDate.getTime()) / (1000 * 60 * 60 * 24);
-        return daysSinceUpload <= 90;
-      }
-      return true;
-    });
-    
-    const totalDocuments = activeDocuments.length;
-    const activeJobs = activeDocuments
+    const totalDocuments = this.documents.size;
+    const activeJobs = Array.from(this.documents.values())
       .filter(doc => doc.type === 'job_description' && doc.status === 'completed').length;
-    const processing = activeDocuments
+    const processing = Array.from(this.documents.values())
       .filter(doc => doc.status === 'processing').length;
     
     const matchesFound = Array.from(this.analyses.values())
@@ -135,37 +180,22 @@ class InMemoryStorage {
     };
   }
 
-  // Get expired job descriptions for analytics
-  async getExpiredJobs(): Promise<Document[]> {
-    const now = new Date();
-    return Array.from(this.documents.values())
-      .filter(doc => {
-        if (doc.type === 'job_description') {
-          const uploadDate = doc.uploadedAt ? new Date(doc.uploadedAt) : new Date();
-          const daysSinceUpload = (now.getTime() - uploadDate.getTime()) / (1000 * 60 * 60 * 24);
-          return daysSinceUpload > 90;
-        }
-        return false;
-      })
-      .sort((a, b) => 
-        (b.uploadedAt ? new Date(b.uploadedAt).getTime() : 0) - (a.uploadedAt ? new Date(a.uploadedAt).getTime() : 0)
-      );
-  }
-
-  // Helper method to clear all data (useful for testing)
+  // Helper method to clear all data
   async clearAll(): Promise<void> {
     this.documents.clear();
     this.analyses.clear();
     this.nextId = 1;
+    await this.saveData();
   }
 
-  // Helper method to add sample data for testing
+  // Helper method to add sample data
   async addSampleData(): Promise<void> {
-    // Add a sample job description
-    await this.createDocument({
-      name: "Sample Software Engineer Job",
-      type: "job_description",
-      content: `Software Engineer Position
+    if (this.documents.size === 0) {
+      // Add a sample job description
+      await this.createDocument({
+        name: "Sample Software Engineer Job",
+        type: "job_description",
+        content: `Software Engineer Position
 
 We are looking for a talented Software Engineer to join our team.
 
@@ -185,13 +215,13 @@ Responsibilities:
 - Troubleshoot and debug issues
 
 This is a great opportunity for someone who is passionate about technology and wants to work on innovative projects.`,
-    });
+      });
 
-    // Add a sample candidate profile
-    await this.createDocument({
-      name: "Sample Developer Resume",
-      type: "consultant_profile",
-      content: `John Doe - Software Developer
+      // Add a sample candidate profile
+      await this.createDocument({
+        name: "Sample Developer Resume",
+        type: "consultant_profile",
+        content: `John Doe - Software Developer
 
 EXPERIENCE
 Senior Developer, Tech Corp (2020-Present)
@@ -217,12 +247,10 @@ SKILLS
 - Databases: PostgreSQL, MongoDB, Redis
 - Tools: Git, Docker, AWS, Jenkins
 - Other: REST APIs, GraphQL, Microservices, Agile`,
-      jobDescriptionId: "id_1_1", // Reference to the sample job
-    });
+        jobDescriptionId: "id_1_1", // Reference to the sample job
+      });
+    }
   }
 }
 
-export const storage = new InMemoryStorage();
-
-// Initialize with sample data when the server starts
-storage.addSampleData().catch(console.error);
+export const fileStorage = new FileStorage();
